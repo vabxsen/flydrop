@@ -158,15 +158,25 @@ class FlyDropNavigationTest {
 
     private fun assertNearbySharing() {
         composeRule.onNodeWithText("Nearby sharing").assertIsDisplayed()
-        composeRule.onNodeWithText("Share through Android").assertIsDisplayed()
+        composeRule.onNodeWithText(
+            "Choose files, then pick Quick Share or another nearby app from " +
+                "Android's secure Sharesheet.",
+        ).assertIsDisplayed()
         composeRule.onNodeWithText("Choose files to send")
             .assertIsDisplayed()
             .assertHasClickAction()
         composeRule.onNodeWithText("Receive with Quick Share")
             .assertIsDisplayed()
             .assertHasClickAction()
+
+        // The radar illustrates discovery with the sample people, so they are
+        // on screen as avatars. None of them is named in text or offered as a
+        // destination: the Sharesheet still chooses who receives the files.
+        composeRule.onNodeWithContentDescription("Ashley Nelson").assertIsDisplayed()
         composeRule.onNodeWithText("Ashley Nelson").assertDoesNotExist()
+        // Gofar was only ever in the old "Nearby Friends" strip, which is gone.
         composeRule.onNodeWithText("Gofar Badman").assertDoesNotExist()
+        composeRule.onNodeWithContentDescription("Gofar Badman").assertDoesNotExist()
     }
 
     private fun navigateTo(destination: String) {
