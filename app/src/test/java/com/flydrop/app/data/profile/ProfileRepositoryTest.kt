@@ -24,4 +24,11 @@ class ProfileRepositoryTest {
             profileFailureMessage(ProfileFailureReason.ServiceNotReady),
         )
     }
+
+    @Test
+    fun onlyTheProfilesCurrentHandleCanBeReturnedBySearch() {
+        assertEquals(true, isCurrentFlyId("current", "current"))
+        assertFalse(isCurrentFlyId("retired", "current"))
+        assertFalse(isCurrentFlyId("reserved", null))
+    }
 }

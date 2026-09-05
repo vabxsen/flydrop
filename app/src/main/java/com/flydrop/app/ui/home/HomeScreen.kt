@@ -59,7 +59,6 @@ fun HomeScreen(
     onReceiveFile: () -> Unit,
     onNotificationsClick: () -> Unit,
     onScan: () -> Unit,
-    onOpenFriend: (FlyUser) -> Unit,
     onToggleFavourite: (FlyUser) -> Unit,
     onRequestContactsPermission: () -> Unit,
     onRetryContacts: () -> Unit,
@@ -69,6 +68,8 @@ fun HomeScreen(
     /** Opens the invite prompt for a phone contact. */
     onContactClick: (FlyUser) -> Unit,
     modifier: Modifier = Modifier,
+    /** Firebase account lookup is unavailable in guest mode. */
+    searchEnabled: Boolean = true,
     /** The signed-in user's own profile photo, when they have set one. */
     avatar: ImageBitmap? = null,
     contentPadding: PaddingValues = PaddingValues(0.dp),
@@ -104,10 +105,10 @@ fun HomeScreen(
                 Spacer(Modifier.height(14.dp))
                 FlyIdSearchCard(
                     state = state.search,
+                    enabled = searchEnabled,
                     onQueryChange = onSearchQueryChange,
                     onSearch = onSearch,
                     onClear = onClearSearch,
-                    onOpenResult = onOpenFriend,
                 )
                 Spacer(Modifier.height(17.dp))
             }
@@ -144,7 +145,7 @@ fun HomeScreen(
                     horizontalArrangement = Arrangement.spacedBy(dimens.cardGap),
                 ) {
                     items(state.favouriteFriends, key = { it.id }) { friend ->
-                        FriendCard(user = friend, onClick = { onOpenFriend(friend) })
+                        FriendCard(user = friend, onClick = { onContactClick(friend) })
                     }
                 }
             }
@@ -176,9 +177,7 @@ fun HomeScreen(
                 }
             }
 
-            ContactsAccess.PermissionRequired,
-            ContactsAccess.Requesting,
-            -> item(key = "requestingContacts") {
+            ContactsAccess.Requesting -> item(key = "requestingContacts") {
                 ContactsMessage("Waiting for contacts permission…")
             }
 
@@ -186,7 +185,9 @@ fun HomeScreen(
                 ContactsMessage("Loading contacts…")
             }
 
-            ContactsAccess.Denied -> item(key = "contactsDenied") {
+            ContactsAccess.PermissionRequired,
+            ContactsAccess.Denied,
+            -> item(key = "contactsDenied") {
                 ContactsMessage(
                     message = "Allow contacts access to show names from this phone.",
                     actionLabel = "Allow contacts",
@@ -287,7 +288,6 @@ private fun HomeScreenPreview() {
             onReceiveFile = {},
             onNotificationsClick = {},
             onScan = {},
-            onOpenFriend = {},
             onToggleFavourite = {},
             onRequestContactsPermission = {},
             onRetryContacts = {},

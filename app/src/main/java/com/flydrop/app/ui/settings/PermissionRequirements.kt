@@ -18,36 +18,15 @@ enum class AppPermission {
  * and testable. Internet and installing APKs are handled differently by
  * Android, so neither appears in the runtime-permission contract.
  */
+@Suppress("UNUSED_PARAMETER")
 internal fun runtimePermissionsFor(permission: AppPermission, sdkInt: Int): List<String> =
     when (permission) {
         AppPermission.Contacts -> listOf(Manifest.permission.READ_CONTACTS)
-
-        AppPermission.NearbyWifi -> if (sdkInt >= 33) {
-            listOf(NEARBY_WIFI_DEVICES_PERMISSION)
-        } else {
-            locationPermissions
-        }
-
-        AppPermission.Bluetooth -> if (sdkInt >= 31) {
-            listOf(
-                BLUETOOTH_SCAN_PERMISSION,
-                BLUETOOTH_CONNECT_PERMISSION,
-            )
-        } else {
-            locationPermissions
-        }
-
+        // Android Quick Share owns nearby discovery. FlyDrop hands it content
+        // through the Sharesheet and must not request radio/location access.
+        AppPermission.NearbyWifi,
+        AppPermission.Bluetooth,
         AppPermission.Internet,
         AppPermission.InstallUpdates,
         -> emptyList()
     }
-
-private val locationPermissions = listOf(
-    Manifest.permission.ACCESS_COARSE_LOCATION,
-    Manifest.permission.ACCESS_FINE_LOCATION,
-)
-
-// String literals avoid class verification of newer Manifest fields on older Android releases.
-private const val NEARBY_WIFI_DEVICES_PERMISSION = "android.permission.NEARBY_WIFI_DEVICES"
-private const val BLUETOOTH_SCAN_PERMISSION = "android.permission.BLUETOOTH_SCAN"
-private const val BLUETOOTH_CONNECT_PERMISSION = "android.permission.BLUETOOTH_CONNECT"

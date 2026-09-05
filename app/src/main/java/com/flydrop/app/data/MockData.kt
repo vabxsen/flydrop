@@ -1,17 +1,17 @@
 package com.flydrop.app.data
 
-import com.flydrop.app.data.model.FileKind
 import com.flydrop.app.data.model.FlyUser
 import com.flydrop.app.data.model.RadarDevice
-import com.flydrop.app.data.model.TransferDirection
-import com.flydrop.app.data.model.TransferFile
-import com.flydrop.app.data.model.TransferState
 
-/**
- * Placeholder state standing in for real discovery/transfer, kept out of the
- * composables so screens can be pointed at a real data source later.
- */
+/** Preview-only people used by Compose tooling; production screens never show them. */
 object MockData {
+
+    val guestUser = FlyUser(
+        id = "guest",
+        name = "Guest",
+        flyId = "Sign in for a FlyDrop ID",
+        avatarSeed = 0,
+    )
 
     val currentUser = FlyUser(
         id = "me",
@@ -27,8 +27,6 @@ object MockData {
     val gofar = FlyUser("gofar", "Gofar Badman", "fly#666666", avatarSeed = 6)
     val rudi = FlyUser("rudi", "Rudi Hartono", "fly#901233", avatarSeed = 7)
 
-    val favouriteFriends = listOf(ashley, david, greyhold, dennis)
-
     /** Angles/radii chosen to reproduce the scatter in the reference radar. */
     val radarDevices = listOf(
         RadarDevice(david, angleDegrees = -22f, radiusFraction = 0.62f, avatarSize = 50),
@@ -38,22 +36,4 @@ object MockData {
     )
 
     val nearbyFriends = listOf(ashley, gofar, rudi, david)
-
-    val transferFiles = listOf(
-        TransferFile("f1", "IMG121235.jpg", FileKind.Image, totalBytes = 3_355_443, transferredBytes = 2_936_012),
-        TransferFile("f2", "IMG121234.jpg", FileKind.Image, totalBytes = 3_145_728, transferredBytes = 1_572_864),
-        TransferFile("f3", "Pokoke Nganu.zip", FileKind.Archive, totalBytes = 254_803_968),
-        TransferFile("f4", "Peceland Project Brief.pdf", FileKind.Pdf, totalBytes = 13_002_342),
-        TransferFile("f5", "Meeting Notes.docx", FileKind.Document, totalBytes = 486_539),
-    )
-
-    val transfer = TransferState(
-        peer = ashley,
-        direction = TransferDirection.Incoming,
-        progress = 0.70f,
-        itemsLabel = "5 to 12",
-        totalSizeLabel = "812 MB",
-        speedLabel = "21.3 MB/s",
-        files = transferFiles,
-    )
 }

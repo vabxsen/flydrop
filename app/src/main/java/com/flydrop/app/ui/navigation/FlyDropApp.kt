@@ -1,7 +1,6 @@
 package com.flydrop.app.ui.navigation
 
 import android.Manifest
-import android.net.Uri
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -38,18 +37,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
 import com.flydrop.app.BuildConfig
 import com.flydrop.app.data.MockData
 import com.flydrop.app.data.PickedFile
 import com.flydrop.app.data.describePickedFiles
 import com.flydrop.app.data.model.FlyUser
-import com.flydrop.app.data.model.TransferDirection
 import com.flydrop.app.ui.about.AboutInfo
 import com.flydrop.app.ui.about.AboutScreen
 import com.flydrop.app.ui.about.UpdateViewModel
@@ -64,14 +60,7 @@ import com.flydrop.app.ui.home.HomeScreen
 import com.flydrop.app.ui.home.HomeViewModel
 import com.flydrop.app.ui.home.InviteContactDialog
 import com.flydrop.app.ui.home.sendInvite
-import com.flydrop.app.ui.home.ContactsAccess
 import com.flydrop.app.ui.nearby.NearbyScreen
-import com.flydrop.app.ui.nearby.NearbyRadiosDialog
-import com.flydrop.app.ui.nearby.NearbyViewModel
-import com.flydrop.app.ui.nearby.bluetoothEnableIntent
-import com.flydrop.app.ui.nearby.needsBluetoothConnectPermission
-import com.flydrop.app.ui.nearby.openWifiControls
-import com.flydrop.app.ui.nearby.rememberRadioStatus
 import com.flydrop.app.data.share.ShareOutcome
 import com.flydrop.app.data.share.openQuickShareReceive
 import com.flydrop.app.data.share.shareFiles
@@ -79,8 +68,6 @@ import com.flydrop.app.ui.profile.ProfileScreen
 import com.flydrop.app.ui.profile.ProfileViewModel
 import com.flydrop.app.ui.settings.SettingsRoute
 import com.flydrop.app.ui.theme.FlyDrop
-import com.flydrop.app.ui.transfer.TransferScreen
-import com.flydrop.app.ui.transfer.TransferViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -91,10 +78,6 @@ private object Routes {
     const val PROFILE = "profile"
     const val SETTINGS = "settings"
     const val ABOUT = "about"
-    const val TRANSFER = "transfer/{peerId}/{peerName}/{direction}"
-
-    fun transfer(peer: FlyUser, direction: TransferDirection): String =
-        "transfer/${Uri.encode(peer.id)}/${Uri.encode(peer.name)}/${direction.name}"
 }
 
 private val tabRoutes = listOf(Routes.HOME, Routes.NEARBY, Routes.PROFILE)
@@ -165,8 +148,8 @@ private fun SplashScreen(modifier: Modifier = Modifier) {
 }
 
 /**
- * Hosts the three tab destinations plus the File Transfer and About screens.
- * Neither of those is a tab route, so the floating navigation hides on both.
+ * Hosts the three tab destinations plus Settings and About. The real transfer
+ * is delegated to Android's Sharesheet rather than a simulated in-app route.
  *
  * The floating navigation is drawn over the content rather than reserving a
  * slot for it, which is what lets the screens run edge to edge underneath, as
@@ -208,6 +191,20 @@ private fun FlyDropNavHost(
             }
             launchSingleTop = true
             restoreState = true
+        }
+    }
+
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val filePicker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenMultipleDocuments(),
+    ) { uris ->
+        if (uris.isEmpty()) return@rememberLauncherForActivityResult
+        scope.launch {
+            pickedFiles = withContext(Dispatchers.IO) {
+                context.contentResolver.describePickedFiles(uris)
+            }
+            navigateToTab(Routes.NEARBY)
         }
     }
 
@@ -259,54 +256,33 @@ private fun FlyDropNavHost(
             composable(Routes.HOME) {
                 val viewModel: HomeViewModel = viewModel()
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
-                val context = LocalContext.current
-                val scope = rememberCoroutineScope()
                 var invitee by remember { mutableStateOf<FlyUser?>(null) }
+                var inviteError by remember { mutableStateOf<String?>(null) }
 
                 val contactsPermissionLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission(),
                     viewModel::onContactsPermissionResult,
                 )
-                LaunchedEffect(state.contactsAccess) {
-                    if (state.contactsAccess == ContactsAccess.PermissionRequired) {
-                        viewModel.markContactsPermissionRequestStarted()
-                        contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
-                    }
-                }
-
-                // The system document picker: it covers photos and files alike
-                // and grants read access per pick, so no storage permission is
-                // needed for the user to choose what to send.
-                val filePicker = rememberLauncherForActivityResult(
-                    ActivityResultContracts.OpenMultipleDocuments(),
-                ) { uris ->
-                    if (uris.isEmpty()) return@rememberLauncherForActivityResult
-                    scope.launch {
-                        // A ContentResolver query per file, so off the main thread.
-                        pickedFiles = withContext(Dispatchers.IO) {
-                            context.contentResolver.describePickedFiles(uris)
-                        }
-                        navigateToTab(Routes.NEARBY)
-                    }
-                }
-
                 HomeScreen(
-                    // Fall back to the mock identity when running without Firebase.
-                    state = if (identity != null) state.copy(currentUser = identity) else state,
+                    state = state.copy(currentUser = identity ?: MockData.guestUser),
                     onSendFile = { filePicker.launch(arrayOf("*/*")) },
                     onReceiveFile = { navigateToTab(Routes.NEARBY) },
                     onNotificationsClick = viewModel::clearNotifications,
                     onScan = { navigateToTab(Routes.NEARBY) },
-                    onOpenFriend = { friend ->
-                        navController.navigate(Routes.transfer(friend, TransferDirection.Outgoing))
-                    },
                     onToggleFavourite = viewModel::toggleFavourite,
-                    onRequestContactsPermission = viewModel::requestContactsPermission,
+                    onRequestContactsPermission = {
+                        viewModel.markContactsPermissionRequestStarted()
+                        contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+                    },
                     onRetryContacts = viewModel::retryContacts,
                     onSearchQueryChange = viewModel::onSearchQueryChange,
                     onSearch = viewModel::searchFlyId,
                     onClearSearch = viewModel::clearSearch,
-                    onContactClick = { invitee = it },
+                    onContactClick = {
+                        inviteError = null
+                        invitee = it
+                    },
+                    searchEnabled = signedInUser != null,
                     avatar = flyIdState.avatar,
                     contentPadding = screenPadding,
                 )
@@ -315,42 +291,27 @@ private fun FlyDropNavHost(
                     InviteContactDialog(
                         contact = contact,
                         onInvite = {
-                            invitee = null
-                            sendInvite(context, contact, BuildConfig.DOWNLOAD_URL)
+                            if (sendInvite(context, contact, BuildConfig.DOWNLOAD_URL)) {
+                                invitee = null
+                                inviteError = null
+                            } else {
+                                inviteError = "No messaging app is available on this phone."
+                            }
                         },
-                        onDismiss = { invitee = null },
+                        onDismiss = {
+                            invitee = null
+                            inviteError = null
+                        },
+                        errorMessage = inviteError,
                     )
                 }
             }
 
             composable(Routes.NEARBY) {
-                val viewModel: NearbyViewModel = viewModel()
-                val state by viewModel.uiState.collectAsStateWithLifecycle()
-                val context = LocalContext.current
-                val radioStatus = rememberRadioStatus()
-                var radiosDialogOpen by remember { mutableStateOf(false) }
                 var shareError by remember { mutableStateOf<String?>(null) }
 
-                // Android's own consent dialog does the enabling; the result is
-                // ignored because rememberRadioStatus re-reads on resume, which
-                // is also correct when the user enables it from the shade.
-                val bluetoothEnable = rememberLauncherForActivityResult(
-                    ActivityResultContracts.StartActivityForResult(),
-                ) {}
-                val bluetoothPermission = rememberLauncherForActivityResult(
-                    ActivityResultContracts.RequestPermission(),
-                ) { granted -> if (granted) bluetoothEnable.launch(bluetoothEnableIntent()) }
-
-                // Asked on arrival, and only when there is something to turn on.
-                LaunchedEffect(Unit) {
-                    if (!radioStatus.allOn) radiosDialogOpen = true
-                }
-
                 NearbyScreen(
-                    state = state,
-                    onDiscoverableChange = viewModel::setDiscoverable,
-                    onSelectUser = viewModel::selectUser,
-                    onAddFriend = viewModel::addFriend,
+                    onPickFiles = { filePicker.launch(arrayOf("*/*")) },
                     pickedFiles = pickedFiles,
                     onClearPickedFiles = { pickedFiles = emptyList() },
                     onSendWithQuickShare = {
@@ -364,30 +325,14 @@ private fun FlyDropNavHost(
                         shareError = if (openQuickShareReceive(context)) {
                             null
                         } else {
-                            "This phone has no Quick Share settings screen to open."
+                            "Quick Share settings could not be opened. Open Quick Share from " +
+                                "Android Settings or the notification shade."
                         }
                     },
                     shareError = shareError,
                     onDismissShareError = { shareError = null },
                     contentPadding = screenPadding,
                 )
-
-                if (radiosDialogOpen) {
-                    NearbyRadiosDialog(
-                        status = radioStatus,
-                        onEnableWifi = { openWifiControls(context) },
-                        onEnableBluetooth = {
-                            // From Android 12, asking to enable Bluetooth needs
-                            // BLUETOOTH_CONNECT first, or the request is refused.
-                            if (needsBluetoothConnectPermission(context)) {
-                                bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
-                            } else {
-                                bluetoothEnable.launch(bluetoothEnableIntent())
-                            }
-                        },
-                        onDismiss = { radiosDialogOpen = false },
-                    )
-                }
             }
 
             composable(Routes.PROFILE) {
@@ -399,7 +344,7 @@ private fun FlyDropNavHost(
                     profileViewModel::onAvatarPicked,
                 )
                 ProfileScreen(
-                    user = identity ?: MockData.currentUser,
+                    user = identity ?: MockData.guestUser,
                     signedIn = signedInUser != null,
                     flyIdState = flyIdState,
                     onEditFlyId = profileViewModel::openEditor,
@@ -463,27 +408,6 @@ private fun FlyDropNavHost(
                 )
             }
 
-            composable(
-                route = Routes.TRANSFER,
-                arguments = listOf(
-                    navArgument("peerId") { type = NavType.StringType },
-                    navArgument("peerName") { type = NavType.StringType },
-                    navArgument("direction") { type = NavType.StringType },
-                ),
-                enterTransition = { slideInVertically(tween(300)) { it / 6 } + fadeIn(tween(300)) },
-                popExitTransition = { slideOutVertically(tween(260)) { it / 6 } + fadeOut(tween(260)) },
-            ) {
-                val viewModel: TransferViewModel = viewModel()
-                val state by viewModel.uiState.collectAsStateWithLifecycle()
-                TransferScreen(
-                    state = state,
-                    onBack = { navController.popBackStack() },
-                    contentPadding = PaddingValues(
-                        top = statusBarPadding,
-                        bottom = navigationBarPadding,
-                    ),
-                )
-            }
         }
 
         if (showNav) {

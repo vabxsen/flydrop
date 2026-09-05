@@ -1,7 +1,6 @@
 package com.flydrop.app.ui.nearby
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -19,8 +18,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,20 +29,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.flydrop.app.data.MockData
 import com.flydrop.app.data.PickedFile
 import com.flydrop.app.data.formatFileSize
-import com.flydrop.app.data.model.FlyUser
-import com.flydrop.app.ui.components.DiscoverySwitch
+import com.flydrop.app.ui.components.Chevron
 import com.flydrop.app.ui.components.FlyDropIcons
 import com.flydrop.app.ui.components.FlyDropLogo
-import com.flydrop.app.ui.components.NearbyFriendCard
 import com.flydrop.app.ui.components.PrimaryActionButton
-import com.flydrop.app.ui.components.RadarView
-import com.flydrop.app.ui.components.Chevron
 import com.flydrop.app.ui.components.SectionHeader
 import com.flydrop.app.ui.components.SoftCard
 import com.flydrop.app.ui.theme.FlyDrop
@@ -53,30 +46,25 @@ import com.flydrop.app.ui.theme.FlyDropTheme
 import kotlinx.coroutines.delay
 
 /**
- * Nearby.
+ * Nearby sharing backed by Android's real Sharesheet and Quick Share.
  *
- * The radar occupies the upper area directly on the tinted background (it is
- * not inside a card), with the white "Nearby Friends" panel anchored below it.
+ * FlyDrop does not run a peer-discovery transport of its own, so this screen
+ * deliberately avoids a scanning radar, invented peers, or a discoverability
+ * switch. Selecting files and choosing a receiver happens in Android's system
+ * UI, where the installed Quick Share implementation owns the actual transfer.
  */
 @Composable
 fun NearbyScreen(
-    state: NearbyUiState,
-    onDiscoverableChange: (Boolean) -> Unit,
-    onSelectUser: (String) -> Unit,
-    onAddFriend: (FlyUser) -> Unit,
+    onPickFiles: () -> Unit,
     modifier: Modifier = Modifier,
-    /** Files chosen with Send File, waiting for a recipient. */
     pickedFiles: List<PickedFile> = emptyList(),
     onClearPickedFiles: () -> Unit = {},
     onSendWithQuickShare: () -> Unit = {},
     onReceiveWithQuickShare: () -> Unit = {},
-    /** Set when a share or receive attempt could not be started. */
     shareError: String? = null,
     onDismissShareError: () -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
-    // Long enough to read, then gone - the same treatment Profile gives its
-    // messages, rather than leaving an error sitting on the screen.
     LaunchedEffect(shareError) {
         if (shareError != null) {
             delay(SHARE_MESSAGE_DURATION_MS)
@@ -85,12 +73,10 @@ fun NearbyScreen(
     }
 
     val dimens = FlyDrop.dimens
-    val colors = FlyDrop.colors
-
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(colors.nearbyBackground)
+            .background(FlyDrop.colors.nearbyBackground)
             .padding(top = contentPadding.calculateTopPadding()),
     ) {
         Row(
@@ -100,76 +86,100 @@ fun NearbyScreen(
                 .padding(horizontal = dimens.screenPadding),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            FlyDropLogo(suffix = "nearby", modifier = Modifier.weight(1f))
-            DiscoverySwitch(
-                checked = state.discoverable,
-                onCheckedChange = onDiscoverableChange,
-            )
+            FlyDropLogo(suffix = "nearby")
         }
 
-        AnimatedVisibility(
-            visible = shareError != null,
-            enter = fadeIn(tween(200)),
-            exit = fadeOut(tween(160)),
-        ) {
-            Text(
-                text = shareError.orEmpty(),
-                style = FlyDrop.type.metadata,
-                color = ShareErrorRed,
-                modifier = Modifier.padding(
-                    start = dimens.screenPadding,
-                    end = dimens.screenPadding,
-                    bottom = 8.dp,
-                ),
-            )
-        }
-
-        if (pickedFiles.isNotEmpty()) {
-            PickedFilesBanner(
-                files = pickedFiles,
-                onClear = onClearPickedFiles,
-                onSendWithQuickShare = onSendWithQuickShare,
-                modifier = Modifier.padding(horizontal = dimens.screenPadding),
-            )
-        }
-
-        // The radar takes the space left between the header and the panel.
-        Box(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
-            contentAlignment = Alignment.Center,
+                .weight(1f)
+                .clip(FlyDrop.shapes.sheet)
+                .background(FlyDrop.colors.surface)
+                .padding(horizontal = dimens.screenPadding)
+                .padding(
+                    top = dimens.panelTopPadding,
+                    bottom = contentPadding.calculateBottomPadding() + 16.dp,
+                ),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            RadarView(
-                devices = state.devices,
-                scanning = state.discoverable,
-                selectedUserId = state.selectedUserId,
-                onDeviceClick = { onSelectUser(it.user.id) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp),
-            )
-        }
+            SectionHeader(title = "Nearby sharing")
 
-        NearbyFriendsPanel(
-            friends = state.nearbyFriends,
-            discovering = state.discoverable,
-            selectedUserId = state.selectedUserId,
-            onSelectUser = onSelectUser,
-            onAddFriend = onAddFriend,
-            onReceiveWithQuickShare = onReceiveWithQuickShare,
-            bottomPadding = contentPadding.calculateBottomPadding(),
-        )
+            SoftCard(
+                modifier = Modifier.fillMaxWidth(),
+                shape = FlyDrop.shapes.smallCard,
+                elevation = 3.dp,
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 22.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(58.dp)
+                            .clip(FlyDrop.shapes.tile)
+                            .background(FlyDrop.colors.violetSoft),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(
+                            imageVector = FlyDropIcons.Radar,
+                            contentDescription = null,
+                            tint = FlyDrop.colors.violet,
+                            modifier = Modifier.size(29.dp),
+                        )
+                    }
+                    Spacer(Modifier.height(14.dp))
+                    Text(
+                        text = "Share through Android",
+                        style = FlyDrop.type.sectionTitle,
+                        color = FlyDrop.colors.textPrimary,
+                        textAlign = TextAlign.Center,
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        text = "Choose files, then select Quick Share or another nearby app " +
+                            "from Android's secure Sharesheet.",
+                        style = FlyDrop.type.secondary,
+                        color = FlyDrop.colors.textSecondary,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+            }
+
+            AnimatedVisibility(
+                visible = shareError != null,
+                enter = fadeIn(tween(200)),
+                exit = fadeOut(tween(160)),
+            ) {
+                Text(
+                    text = shareError.orEmpty(),
+                    style = FlyDrop.type.metadata,
+                    color = ShareErrorRed,
+                )
+            }
+
+            if (pickedFiles.isEmpty()) {
+                PrimaryActionButton(
+                    label = "Choose files to send",
+                    icon = FlyDropIcons.Send,
+                    containerColor = FlyDrop.colors.violet,
+                    onClick = onPickFiles,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            } else {
+                PickedFilesBanner(
+                    files = pickedFiles,
+                    onClear = onClearPickedFiles,
+                    onSendWithQuickShare = onSendWithQuickShare,
+                )
+            }
+
+            QuickShareReceiveRow(onClick = onReceiveWithQuickShare)
+        }
     }
 }
 
-/**
- * What Send File picked, and the way to send it.
- *
- * Quick Share does the transfer: this app has no transport of its own, and the
- * receiving phone needs no copy of it. The radar below stays what it is - a
- * view of FlyDrop peers - so the two are kept visually separate.
- */
 @Composable
 private fun PickedFilesBanner(
     files: List<PickedFile>,
@@ -178,7 +188,6 @@ private fun PickedFilesBanner(
     modifier: Modifier = Modifier,
 ) {
     val total = files.sumOf { it.sizeBytes ?: 0L }.takeIf { it > 0L }
-
     SoftCard(
         modifier = modifier.fillMaxWidth(),
         shape = FlyDrop.shapes.smallCard,
@@ -195,7 +204,7 @@ private fun PickedFilesBanner(
                     modifier = Modifier
                         .size(34.dp)
                         .clip(FlyDrop.shapes.tile)
-                        .background(FlyDrop.colors.violetSoft, FlyDrop.shapes.tile),
+                        .background(FlyDrop.colors.violetSoft),
                     contentAlignment = Alignment.Center,
                 ) {
                     Icon(
@@ -208,45 +217,31 @@ private fun PickedFilesBanner(
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = if (files.size == 1) {
-                            files.first().name
-                        } else {
-                            "${files.size} files ready to send"
-                        },
+                        text = if (files.size == 1) files.first().name else "${files.size} files ready",
                         style = FlyDrop.type.cardTitle,
                         color = FlyDrop.colors.textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        // The title already says these are ready to send, so
-                        // this carries only what it does not: how much.
-                        text = if (total != null) formatFileSize(total) else "Ready to send",
+                        text = if (total != null) formatFileSize(total) else "Ready to share",
                         style = FlyDrop.type.metadata,
                         color = FlyDrop.colors.textSecondary,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Spacer(Modifier.width(8.dp))
                 Box(
                     modifier = Modifier
-                        .size(40.dp)
+                        .size(48.dp)
                         .clip(FlyDrop.shapes.chip)
                         .clickable(onClick = onClear)
                         .semantics { role = Role.Button },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text(
-                        text = "Clear",
-                        style = FlyDrop.type.metadata,
-                        color = FlyDrop.colors.violet,
-                    )
+                    Text("Clear", style = FlyDrop.type.metadata, color = FlyDrop.colors.violet)
                 }
             }
-
             PrimaryActionButton(
-                label = "Send with Quick Share",
+                label = "Open Sharesheet",
                 icon = FlyDropIcons.Send,
                 containerColor = FlyDrop.colors.violet,
                 onClick = onSendWithQuickShare,
@@ -258,11 +253,6 @@ private fun PickedFilesBanner(
     }
 }
 
-/**
- * The receiving half. Quick Share receiving is switched on by the system, not
- * by an app - there is no public API for it - so this opens the nearest system
- * screen and leaves the switch to the user.
- */
 @Composable
 private fun QuickShareReceiveRow(
     onClick: () -> Unit,
@@ -284,7 +274,7 @@ private fun QuickShareReceiveRow(
                 modifier = Modifier
                     .size(38.dp)
                     .clip(FlyDrop.shapes.tile)
-                    .background(FlyDrop.colors.tealSoft, FlyDrop.shapes.tile),
+                    .background(FlyDrop.colors.tealSoft),
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
@@ -300,11 +290,9 @@ private fun QuickShareReceiveRow(
                     text = "Receive with Quick Share",
                     style = FlyDrop.type.cardTitle,
                     color = FlyDrop.colors.textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    text = "Open your phone's Quick Share settings",
+                    text = "Open this phone's Quick Share settings",
                     style = FlyDrop.type.metadata,
                     color = FlyDrop.colors.textSecondary,
                     maxLines = 1,
@@ -316,87 +304,13 @@ private fun QuickShareReceiveRow(
     }
 }
 
-@Composable
-private fun NearbyFriendsPanel(
-    friends: List<FlyUser>,
-    discovering: Boolean,
-    selectedUserId: String?,
-    onSelectUser: (String) -> Unit,
-    onAddFriend: (FlyUser) -> Unit,
-    onReceiveWithQuickShare: () -> Unit,
-    bottomPadding: androidx.compose.ui.unit.Dp,
-    modifier: Modifier = Modifier,
-) {
-    val dimens = FlyDrop.dimens
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(FlyDrop.shapes.sheet)
-            .background(FlyDrop.colors.surface)
-            .padding(top = FlyDrop.dimens.panelTopPadding, bottom = bottomPadding),
-    ) {
-        SectionHeader(
-            title = "Nearby Friends",
-            modifier = Modifier.padding(horizontal = dimens.screenPadding),
-        )
-        Spacer(Modifier.height(12.dp))
-        if (friends.isEmpty()) {
-            Text(
-                text = if (discovering) {
-                    "Searching for nearby friends…"
-                } else {
-                    "Nearby discovery is off."
-                },
-                style = FlyDrop.type.secondary,
-                color = FlyDrop.colors.textSecondary,
-                modifier = Modifier.padding(horizontal = dimens.screenPadding),
-            )
-        } else {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = dimens.screenPadding),
-                horizontalArrangement = Arrangement.spacedBy(dimens.nearbyCardGap),
-            ) {
-                items(friends, key = { it.id }) { friend ->
-                    NearbyFriendCard(
-                        user = friend,
-                        selected = friend.id == selectedUserId,
-                        onClick = { onSelectUser(friend.id) },
-                        onAction = { onAddFriend(friend) },
-                        modifier = Modifier.animateItem(
-                            placementSpec = spring(stiffness = 400f),
-                        ),
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-        QuickShareReceiveRow(
-            onClick = onReceiveWithQuickShare,
-            modifier = Modifier.padding(horizontal = dimens.screenPadding),
-        )
-        Spacer(Modifier.height(16.dp))
-    }
-}
-
 @Preview(showBackground = true, widthDp = 380, heightDp = 820)
 @Composable
 private fun NearbyScreenPreview() {
     FlyDropTheme {
-        NearbyScreen(
-            state = NearbyUiState(
-                devices = MockData.radarDevices,
-                nearbyFriends = MockData.nearbyFriends,
-                selectedUserId = MockData.ashley.id,
-            ),
-            onDiscoverableChange = {},
-            onSelectUser = {},
-            onAddFriend = {},
-        )
+        NearbyScreen(onPickFiles = {})
     }
 }
 
-/** Long enough to read the message, short enough not to become furniture. */
 private const val SHARE_MESSAGE_DURATION_MS = 6_000L
-
-/** Matches the error tone used on Profile and the sign-in screen. */
 private val ShareErrorRed = Color(0xFFD1453B)

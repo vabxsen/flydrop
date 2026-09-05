@@ -164,9 +164,9 @@ class ProfileRepository(context: Context) {
     /**
      * Finds the account holding [requested], if any.
      *
-     * Only the reservation document is read. It names its owner, which is
-     * everything needed to identify the holder, so this costs one read and
-     * never touches the other account's profile document.
+     * The permanent reservation is read first, followed by its owner's public
+     * profile. Reservations are deliberately never deleted, so the second read
+     * is required to distinguish a current id from one the account retired.
      *
      * The reservation carries no display name - the app stores none - so a
      * result is identified by the FlyDrop ID itself and the avatar derived from
@@ -181,18 +181,26 @@ class ProfileRepository(context: Context) {
                 "Searching needs Firebase, which is not configured.",
             )
 
-        return runCatching { db.handleDocument(handle).get().await() }
+        return runCatching {
+            val reservation = db.handleDocument(handle).get().await()
+            val uid = reservation.takeIf { it.exists() }?.getString(FIELD_UID)
+                ?.takeIf { it.isNotBlank() }
+                ?: return@runCatching null
+            val profile = db.userDocument(uid).get().await().toProfile(uid)
+            uid to profile
+        }
             .fold(
-                onSuccess = { snapshot ->
-                    val uid = snapshot.takeIf { it.exists() }?.getString(FIELD_UID)
-                    if (uid.isNullOrBlank()) {
+                onSuccess = { ownerAndProfile ->
+                    val uid = ownerAndProfile?.first
+                    val profile = ownerAndProfile?.second
+                    if (uid == null || profile == null || !isCurrentFlyId(handle, profile.handle)) {
                         FlyIdSearchResult.NotFound
                     } else {
                         FlyIdSearchResult.Found(
                             FlyUser(
                                 id = uid,
-                                name = FlyIdRules.display(handle),
-                                flyId = FlyIdRules.display(handle),
+                                name = profile.flyId,
+                                flyId = profile.flyId,
                                 avatarSeed = uid.hashCode().ushr(1),
                             ),
                         )
@@ -302,6 +310,9 @@ class ProfileRepository(context: Context) {
         const val RECONNECT_DELAY_MS = 500L
     }
 }
+
+internal fun isCurrentFlyId(requestedHandle: String, profileHandle: String?): Boolean =
+    requestedHandle == profileHandle
 
 /**
  * Thrown from inside the claim transaction. Firestore surfaces whatever a

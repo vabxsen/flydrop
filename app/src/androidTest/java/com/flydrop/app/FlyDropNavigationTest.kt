@@ -6,8 +6,6 @@ import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
-import androidx.compose.ui.test.assertIsOff
-import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsNotSelected
 import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasClickAction
@@ -52,6 +50,7 @@ class FlyDropNavigationTest {
         composeRule.onNodeWithText("Favourite Friends").assertIsDisplayed()
         composeRule.onNodeWithText("No favourite friends yet").assertIsDisplayed()
         composeRule.onNodeWithText("Contacts").assertIsDisplayed()
+        composeRule.onNodeWithText("Sign in to find people by FlyDrop ID.").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Unread notifications", useUnmergedTree = true)
             .assertIsDisplayed()
         composeRule.onNodeWithContentDescription("Notifications").performClick()
@@ -64,16 +63,16 @@ class FlyDropNavigationTest {
         composeRule.onNodeWithText("Send File").assertIsDisplayed().assertHasClickAction()
 
         navigateTo("Nearby")
-        assertNearbyAndToggleDiscovery()
+        assertNearbySharing()
         navigateTo("Home")
         composeRule.onNodeWithText("Favourite Friends").assertIsDisplayed()
 
         composeRule.onNodeWithText("Receive File").performClick()
-        composeRule.onNodeWithText("Nearby Friends").assertIsDisplayed()
+        composeRule.onNodeWithText("Nearby sharing").assertIsDisplayed()
         navigateTo("Home")
 
         composeRule.onNodeWithContentDescription("Scan a FlyDrop code").performClick()
-        composeRule.onNodeWithText("Nearby Friends").assertIsDisplayed()
+        composeRule.onNodeWithText("Nearby sharing").assertIsDisplayed()
         navigateTo("Home")
 
         navigateTo("Profile")
@@ -157,20 +156,17 @@ class FlyDropNavigationTest {
         hasText(label) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab),
     )
 
-    private fun assertNearbyAndToggleDiscovery() {
-        composeRule.onNodeWithText("Nearby Friends").assertIsDisplayed()
-        composeRule.onNodeWithText("Searching for nearby friends…").assertIsDisplayed()
+    private fun assertNearbySharing() {
+        composeRule.onNodeWithText("Nearby sharing").assertIsDisplayed()
+        composeRule.onNodeWithText("Share through Android").assertIsDisplayed()
+        composeRule.onNodeWithText("Choose files to send")
+            .assertIsDisplayed()
+            .assertHasClickAction()
+        composeRule.onNodeWithText("Receive with Quick Share")
+            .assertIsDisplayed()
+            .assertHasClickAction()
         composeRule.onNodeWithText("Ashley Nelson").assertDoesNotExist()
         composeRule.onNodeWithText("Gofar Badman").assertDoesNotExist()
-        composeRule.onNodeWithContentDescription("Device discovery")
-            .assertIsOn()
-            .performClick()
-            .assertIsOff()
-        composeRule.onNodeWithText("Nearby discovery is off.").assertIsDisplayed()
-        composeRule.onNodeWithContentDescription("Device discovery")
-            .performClick()
-            .assertIsOn()
-        composeRule.onNodeWithText("Searching for nearby friends…").assertIsDisplayed()
     }
 
     private fun navigateTo(destination: String) {

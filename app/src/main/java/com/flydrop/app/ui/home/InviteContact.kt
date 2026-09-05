@@ -3,6 +3,7 @@ package com.flydrop.app.ui.home
 import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,7 +17,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
-import androidx.core.net.toUri
 import com.flydrop.app.data.model.FlyUser
 import com.flydrop.app.ui.components.DialogTextButton
 import com.flydrop.app.ui.components.SoftCard
@@ -34,6 +34,7 @@ fun InviteContactDialog(
     contact: FlyUser,
     onInvite: () -> Unit,
     onDismiss: () -> Unit,
+    errorMessage: String? = null,
 ) {
     Dialog(onDismissRequest = onDismiss) {
         SoftCard(shape = FlyDrop.shapes.largeCard, elevation = 8.dp) {
@@ -55,6 +56,14 @@ fun InviteContactDialog(
                     style = FlyDrop.type.secondary,
                     color = FlyDrop.colors.textSecondary,
                 )
+                if (errorMessage != null) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(
+                        text = errorMessage,
+                        style = FlyDrop.type.metadata,
+                        color = InviteErrorRed,
+                    )
+                }
                 Spacer(Modifier.height(18.dp))
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
                     DialogTextButton(label = "Not now", filled = false, onClick = onDismiss)
@@ -82,9 +91,9 @@ fun sendInvite(context: Context, contact: FlyUser, downloadUrl: String): Boolean
     val body = "I'm using FlyDrop to share files. Get it here: $downloadUrl"
     // An empty recipient is valid here: the messaging app opens on its
     // recipient picker instead of refusing the intent.
-    val target = "smsto:${contact.phoneNumber.orEmpty()}"
+    val target = Uri.fromParts("smsto", contact.phoneNumber.orEmpty(), null)
 
-    val intent = Intent(Intent.ACTION_SENDTO, target.toUri()).apply {
+    val intent = Intent(Intent.ACTION_SENDTO, target).apply {
         putExtra("sms_body", body)
     }
 
@@ -97,3 +106,5 @@ fun sendInvite(context: Context, contact: FlyUser, downloadUrl: String): Boolean
         false
     }
 }
+
+private val InviteErrorRed = androidx.compose.ui.graphics.Color(0xFFD1453B)

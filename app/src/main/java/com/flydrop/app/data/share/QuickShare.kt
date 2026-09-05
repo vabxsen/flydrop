@@ -5,7 +5,6 @@ import android.content.ClipData
 import android.content.ClipDescription
 import android.content.Context
 import android.content.Intent
-import android.provider.Settings
 import com.flydrop.app.data.FALLBACK_MIME_TYPE
 import com.flydrop.app.data.PickedFile
 
@@ -133,12 +132,11 @@ fun shareFiles(context: Context, files: List<PickedFile>): ShareOutcome {
 }
 
 /**
- * Opens the closest system screen for turning Quick Share receiving on.
+ * Opens a manufacturer-provided Quick Share receiving screen when available.
  *
- * No public API switches it on, and none is used: this only opens a screen and
- * leaves the decision to the user. The candidates are tried in order of how
- * close each lands to Quick Share itself, and the last two are public Settings
- * actions that exist on every Android build, so something always opens.
+ * No public Android API switches receiving on or even exposes a universal
+ * settings page. Generic wireless/Bluetooth settings are deliberately not used
+ * as fallbacks because opening one does not complete the requested action.
  *
  * Each is launched rather than resolved first, because `resolveActivity` is
  * subject to package-visibility filtering on this target SDK and would report a
@@ -150,16 +148,14 @@ fun openQuickShareReceive(context: Context): Boolean =
 /**
  * Where to look for Quick Share's own screen, nearest first.
  *
- * The first two are the intents Google Play services and Samsung publish for
- * their Quick Share settings. Neither is part of the Android SDK, so neither is
- * relied on: they are ordinary implicit intents that are tried and allowed to
- * fail. The public Settings actions behind them are the guaranteed floor.
+ * These intents are published by Google Play services and Samsung. Neither is
+ * part of the Android SDK, so both are tried and allowed to fail; callers then
+ * show accurate instructions instead of claiming an unrelated settings page
+ * is Quick Share.
  */
 internal fun quickShareReceiveIntents(): List<Intent> = listOf(
     Intent("com.google.android.gms.settings.NEARBY_SHARING_SETTINGS"),
     Intent("com.samsung.android.intent.action.QUICK_SHARE_SETTINGS"),
-    Intent(Settings.ACTION_WIRELESS_SETTINGS),
-    Intent(Settings.ACTION_BLUETOOTH_SETTINGS),
 )
 
 private fun Context.startActivitySafely(intent: Intent): Boolean = try {

@@ -2,4 +2,6 @@
 <full-backup-content>
     <!-- Excludes avatars left in filesDir by releases before noBackupFilesDir. -->
     <exclude domain="file" path="avatars/" />
+    <!-- Contact provider IDs are device-local and must never restore elsewhere. -->
+    <exclude domain="sharedpref" path="flydrop_home.xml" />
 </full-backup-content>

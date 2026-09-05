@@ -306,7 +306,14 @@ private fun PermissionCard(
         PermissionAccess.Granted -> "Allowed"
         PermissionAccess.Required -> "Permission needed"
         PermissionAccess.Blocked -> "Blocked - change it in Android settings"
-        PermissionAccess.BuiltIn -> "Available"
+        PermissionAccess.BuiltIn -> if (
+            item.permission == AppPermission.NearbyWifi ||
+            item.permission == AppPermission.Bluetooth
+        ) {
+            "Managed by Android Quick Share"
+        } else {
+            "Available"
+        }
     }
     val showAction = item.access != PermissionAccess.BuiltIn
     val actionLabel = when {
@@ -415,7 +422,9 @@ private fun PermissionNote(
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            text = "FlyDrop asks only when a feature needs access. On Android 12 and earlier, nearby scanning may be shown as Location permission.",
+            text = "FlyDrop asks for contacts only when you choose to show them. " +
+                "Nearby Wi-Fi and Bluetooth are managed by Android Quick Share, so FlyDrop " +
+                "does not request radio or location permissions.",
             style = FlyDrop.type.metadata,
             color = FlyDrop.colors.textSecondary,
         )
@@ -448,14 +457,14 @@ internal fun permissionItems(
     PermissionItem(
         permission = AppPermission.NearbyWifi,
         title = "Nearby Wi-Fi",
-        description = "Find and connect to nearby FlyDrop devices.",
-        access = runtimeAccess(context, AppPermission.NearbyWifi, sdkInt, blocked),
+        description = "Used by Android Quick Share for nearby transfers.",
+        access = PermissionAccess.BuiltIn,
     ),
     PermissionItem(
         permission = AppPermission.Bluetooth,
         title = "Bluetooth",
-        description = "Discover nearby devices and make connections.",
-        access = runtimeAccess(context, AppPermission.Bluetooth, sdkInt, blocked),
+        description = "Used by Android Quick Share to discover receivers.",
+        access = PermissionAccess.BuiltIn,
     ),
     PermissionItem(
         permission = AppPermission.Internet,

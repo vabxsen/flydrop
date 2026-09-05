@@ -41,7 +41,6 @@ import androidx.compose.ui.unit.dp
 import com.flydrop.app.data.model.FlyUser
 import com.flydrop.app.data.profile.FlyIdRules
 import com.flydrop.app.ui.components.Avatar
-import com.flydrop.app.ui.components.Chevron
 import com.flydrop.app.ui.components.FlyDropIcons
 import com.flydrop.app.ui.components.SoftCard
 import com.flydrop.app.ui.theme.FlyDrop
@@ -52,15 +51,16 @@ import com.flydrop.app.ui.theme.FlyDropTheme
  *
  * FlyDrop IDs are globally unique, so this is an exact lookup rather than a
  * search: one id names at most one account. The result appears in place, under
- * the field, and opens a transfer when tapped.
+ * the field. Account lookup is informational: actual file transfer is handed
+ * to Android's Sharesheet and Quick Share from the Send File action.
  */
 @Composable
 fun FlyIdSearchCard(
     state: UserSearchState,
+    enabled: Boolean,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
     onClear: () -> Unit,
-    onOpenResult: (FlyUser) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     SoftCard(
@@ -83,15 +83,28 @@ fun FlyIdSearchCard(
             )
             Spacer(Modifier.height(12.dp))
 
-            SearchField(
-                state = state,
-                onQueryChange = onQueryChange,
-                onSearch = onSearch,
-                onClear = onClear,
-            )
+            if (enabled) {
+                SearchField(
+                    state = state,
+                    onQueryChange = onQueryChange,
+                    onSearch = onSearch,
+                    onClear = onClear,
+                )
+            } else {
+                Text(
+                    text = "Sign in to find people by FlyDrop ID.",
+                    style = FlyDrop.type.metadata,
+                    color = FlyDrop.colors.textSecondary,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(FlyDrop.shapes.tile)
+                        .background(FlyDrop.colors.paleTile)
+                        .padding(horizontal = 12.dp, vertical = 13.dp),
+                )
+            }
 
             AnimatedVisibility(
-                visible = state.result != null || state.message != null,
+                visible = enabled && (state.result != null || state.message != null),
                 enter = fadeIn(tween(200)),
                 exit = fadeOut(tween(150)),
             ) {
@@ -99,7 +112,7 @@ fun FlyIdSearchCard(
                     Spacer(Modifier.height(12.dp))
                     val found = state.result
                     if (found != null) {
-                        SearchResultRow(user = found, onClick = { onOpenResult(found) })
+                        SearchResultRow(user = found)
                     } else {
                         Text(
                             text = state.message.orEmpty(),
@@ -215,11 +228,10 @@ private fun SearchField(
     }
 }
 
-/** The found account. Tapping opens a transfer, as a favourite friend does. */
+/** A verified current FlyDrop account. */
 @Composable
 private fun SearchResultRow(
     user: FlyUser,
-    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Row(
@@ -227,8 +239,6 @@ private fun SearchResultRow(
             .fillMaxWidth()
             .clip(FlyDrop.shapes.smallCard)
             .background(FlyDrop.colors.tealSoft, FlyDrop.shapes.smallCard)
-            .clickable(onClick = onClick)
-            .semantics { role = Role.Button }
             .padding(horizontal = 12.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.Start,
@@ -244,12 +254,11 @@ private fun SearchResultRow(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = "Tap to send files",
+                text = "FlyDrop account found",
                 style = FlyDrop.type.secondary,
                 color = FlyDrop.colors.textSecondary,
             )
         }
-        Chevron()
     }
 }
 
@@ -263,10 +272,10 @@ private fun FlyIdSearchCardPreview() {
         ) {
             FlyIdSearchCard(
                 state = UserSearchState(query = "lucas"),
+                enabled = true,
                 onQueryChange = {},
                 onSearch = {},
                 onClear = {},
-                onOpenResult = {},
             )
             FlyIdSearchCard(
                 state = UserSearchState(
@@ -278,20 +287,20 @@ private fun FlyIdSearchCardPreview() {
                         avatarSeed = 7,
                     ),
                 ),
+                enabled = true,
                 onQueryChange = {},
                 onSearch = {},
                 onClear = {},
-                onOpenResult = {},
             )
             FlyIdSearchCard(
                 state = UserSearchState(
                     query = "nobody",
                     message = "No one is using that FlyDrop ID.",
                 ),
+                enabled = true,
                 onQueryChange = {},
                 onSearch = {},
                 onClear = {},
-                onOpenResult = {},
             )
         }
     }

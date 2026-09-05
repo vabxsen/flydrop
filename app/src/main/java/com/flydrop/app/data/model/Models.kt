@@ -28,34 +28,6 @@ data class FlyUser(
     val phoneNumber: String? = null,
 )
 
-enum class FileKind { Image, Archive, Pdf, Document }
-
-@Immutable
-data class TransferFile(
-    val id: String,
-    val name: String,
-    val kind: FileKind,
-    val totalBytes: Long,
-    /** Null when the file is queued rather than in flight. */
-    val transferredBytes: Long? = null,
-) {
-    val progress: Float?
-        get() = transferredBytes?.let {
-            if (totalBytes <= 0L) 0f else (it.toFloat() / totalBytes).coerceIn(0f, 1f)
-        }
-}
-
-enum class TransferDirection { Incoming, Outgoing }
-
-@Immutable
-data class ActivityEntry(
-    val id: String,
-    val peer: FlyUser,
-    val direction: TransferDirection,
-    val fileCount: Int,
-    val relativeTime: String,
-)
-
 /** Where a discovered device sits on the radar: [angleDegrees] clockwise from 12 o'clock. */
 @Immutable
 data class RadarDevice(
@@ -64,15 +36,4 @@ data class RadarDevice(
     /** 0f at the centre, 1f at the outer ring. */
     val radiusFraction: Float,
     val avatarSize: Int,
-)
-
-@Immutable
-data class TransferState(
-    val peer: FlyUser,
-    val direction: TransferDirection,
-    val progress: Float,
-    val itemsLabel: String,
-    val totalSizeLabel: String,
-    val speedLabel: String,
-    val files: List<TransferFile>,
 )

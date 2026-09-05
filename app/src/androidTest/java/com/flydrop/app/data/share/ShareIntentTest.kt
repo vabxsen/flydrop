@@ -94,12 +94,17 @@ class ShareIntentTest {
         assertNull(shareIntentFor(emptyList()))
     }
 
-    /** Every candidate must be launchable; the last two ship on every build. */
+    /** Never report unrelated generic radio settings as Quick Share success. */
     @Test
-    fun receiveFallsBackToScreensThatAlwaysExist() {
+    fun receiveOnlyTargetsKnownQuickShareScreens() {
         val actions = quickShareReceiveIntents().map { it.action }
 
-        assertTrue(actions.contains(android.provider.Settings.ACTION_WIRELESS_SETTINGS))
-        assertTrue(actions.contains(android.provider.Settings.ACTION_BLUETOOTH_SETTINGS))
+        assertEquals(
+            listOf(
+                "com.google.android.gms.settings.NEARBY_SHARING_SETTINGS",
+                "com.samsung.android.intent.action.QUICK_SHARE_SETTINGS",
+            ),
+            actions,
+        )
     }
 }

@@ -72,7 +72,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
             contactsAccess = if (hasContactsPermission()) {
                 ContactsAccess.Loading
             } else {
-                ContactsAccess.PermissionRequired
+                ContactsAccess.Denied
             },
         ),
     )
@@ -129,7 +129,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun markContactsPermissionRequestStarted() {
         _uiState.update { state ->
-            if (state.contactsAccess == ContactsAccess.PermissionRequired) {
+            if (
+                state.contactsAccess == ContactsAccess.PermissionRequired ||
+                state.contactsAccess == ContactsAccess.Denied
+            ) {
                 state.copy(contactsAccess = ContactsAccess.Requesting)
             } else {
                 state
@@ -145,12 +148,12 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun requestContactsPermission() {
-        _uiState.update { it.copy(contactsAccess = ContactsAccess.PermissionRequired) }
-    }
-
     fun retryContacts() {
-        if (hasContactsPermission()) loadContacts() else requestContactsPermission()
+        if (hasContactsPermission()) {
+            loadContacts()
+        } else {
+            _uiState.update { it.copy(contactsAccess = ContactsAccess.Denied) }
+        }
     }
 
     fun toggleFavourite(contact: FlyUser) {
