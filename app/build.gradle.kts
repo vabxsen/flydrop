@@ -43,8 +43,8 @@ android {
         applicationId = "com.flydrop.app"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
-        versionName = "1.0.6"
+        versionCode = 8
+        versionName = "1.0.7"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // About > Source code and Report a bug open these. Kept here rather
