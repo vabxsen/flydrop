@@ -7,7 +7,7 @@ rules_version = '2';
 //   1. An id belongs to exactly one account.
 //   2. An account may choose its own id exactly once.
 //
-// Deploy with:  firebase deploy --only firestore:rules
+// Deploy with:  firebase deploy --only firestore:rules --project YOUR_PROJECT_ID
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -29,7 +29,9 @@ service cloud.firestore {
                     && handle.size() >= 3
                     && handle.size() <= 20
                     && handle.matches('^[a-z0-9](?:[a-z0-9._]*[a-z0-9])?$')
-                    && !handle.matches('.*[._]{2}.*');
+                    && !handle.matches('.*[._]{2}.*')
+                    && !isReservedHandle(handle)
+                    && profileClaimsHandle(handle);
       allow update, delete: if false;
     }
 
@@ -65,6 +67,28 @@ service cloud.firestore {
              && existsAfter(/databases/$(database)/documents/flyIds/$(handle))
              && getAfter(/databases/$(database)/documents/flyIds/$(handle)).data.uid
                 == request.auth.uid;
+    }
+
+    // A reservation is valid only as part of the same atomic write that points
+    // its owner's profile at it. This prevents a modified client from creating
+    // unused reservations merely to squat on names.
+    function profileClaimsHandle(handle) {
+      return existsAfter(
+               /databases/$(database)/documents/users/$(request.auth.uid)
+             )
+             && getAfter(
+                  /databases/$(database)/documents/users/$(request.auth.uid)
+                ).data.handle == handle;
+    }
+
+    // Keep the server authoritative. Client-side validation exists for quick
+    // feedback, but a modified client must not be able to impersonate the app
+    // or its operators by skipping it.
+    function isReservedHandle(handle) {
+      return handle in [
+        'flydrop', 'fly', 'admin', 'administrator', 'support', 'help', 'root',
+        'system', 'official', 'team', 'staff', 'moderator', 'security', 'me'
+      ];
     }
   }
 }

@@ -1,6 +1,7 @@
 package com.flydrop.app.data.update
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -93,5 +94,22 @@ class AppReleaseTest {
 
         assertEquals(false, AppVersion.isNewer(release.tag, "1.0.1"))
         assertEquals(true, AppVersion.isNewer(release.tag, "1.0.0"))
+    }
+
+    @Test
+    fun aNewerReleaseWithoutAnApkIsNotOfferedForInstallation() {
+        val release = parseRelease("""{"tag_name":"v2.0.0","assets":[]}""")
+
+        val result = classifyUpdate(release, "1.0.2")
+
+        assertTrue(result is UpdateCheck.Failed)
+        assertTrue((result as UpdateCheck.Failed).message.contains("no APK"))
+    }
+
+    @Test
+    fun aNewerReleaseWithAnApkIsOffered() {
+        val release = parseRelease(realPayload)
+
+        assertTrue(classifyUpdate(release, "1.0.0") is UpdateCheck.Available)
     }
 }

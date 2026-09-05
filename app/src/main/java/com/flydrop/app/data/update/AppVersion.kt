@@ -30,7 +30,7 @@ data class AppVersion(
             preRelease == null && other.preRelease == null -> 0
             preRelease == null -> 1
             other.preRelease == null -> -1
-            else -> preRelease.compareTo(other.preRelease)
+            else -> comparePreRelease(preRelease, other.preRelease)
         }
     }
 
@@ -52,8 +52,16 @@ data class AppVersion(
             // `1.0.2-` as `1.0.2` would be guessing at what was meant.
             if (trimmed.endsWith('-') || trimmed.endsWith('+')) return null
 
-            val preRelease = trimmed.substringAfter('-', "").ifEmpty { null }
-            val numeric = trimmed.substringBefore('-').substringBefore('+')
+            val withoutBuildMetadata = trimmed.substringBefore('+')
+            val preRelease = withoutBuildMetadata.substringAfter('-', "").ifEmpty { null }
+            val numeric = withoutBuildMetadata.substringBefore('-')
+
+            if (preRelease != null && !preRelease.isValidIdentifierList()) return null
+
+            val buildMetadata = trimmed.substringAfter('+', "").ifEmpty { null }
+            if ('+' in trimmed && (buildMetadata == null || !buildMetadata.isValidIdentifierList())) {
+                return null
+            }
 
             val numbers = numeric.split('.').map { segment ->
                 segment.trim().toIntOrNull()?.takeIf { it >= 0 } ?: return null
@@ -73,3 +81,39 @@ data class AppVersion(
         }
     }
 }
+
+/** Semantic-version precedence for dot-separated prerelease identifiers. */
+private fun comparePreRelease(left: String, right: String): Int {
+    val mine = left.split('.')
+    val theirs = right.split('.')
+    for (index in 0 until minOf(mine.size, theirs.size)) {
+        val comparison = compareIdentifier(mine[index], theirs[index])
+        if (comparison != 0) return comparison
+    }
+    return mine.size.compareTo(theirs.size)
+}
+
+private fun compareIdentifier(left: String, right: String): Int {
+    val leftIsNumber = left.all { it in '0'..'9' }
+    val rightIsNumber = right.all { it in '0'..'9' }
+    return when {
+        leftIsNumber && rightIsNumber -> compareNumericText(left, right)
+        leftIsNumber -> -1
+        rightIsNumber -> 1
+        else -> left.compareTo(right)
+    }
+}
+
+/** Compares arbitrary-length numeric identifiers without overflowing an Int. */
+private fun compareNumericText(left: String, right: String): Int {
+    val normalisedLeft = left.trimStart('0').ifEmpty { "0" }
+    val normalisedRight = right.trimStart('0').ifEmpty { "0" }
+    return normalisedLeft.length.compareTo(normalisedRight.length)
+        .takeIf { it != 0 }
+        ?: normalisedLeft.compareTo(normalisedRight)
+}
+
+private fun String.isValidIdentifierList(): Boolean =
+    split('.').all { identifier ->
+        identifier.isNotEmpty() && identifier.all { it.isLetterOrDigit() || it == '-' }
+    }

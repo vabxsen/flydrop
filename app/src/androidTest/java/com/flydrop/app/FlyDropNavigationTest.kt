@@ -60,7 +60,6 @@ class FlyDropNavigationTest {
 
         composeRule.onNodeWithText("Send File").performClick()
         assertNearbyAndToggleDiscovery()
-        addGofarAsFriend()
         navigateTo("Home")
         composeRule.onNodeWithText("Favourite Friends").assertIsDisplayed()
 
@@ -75,9 +74,26 @@ class FlyDropNavigationTest {
         navigateTo("Profile")
         composeRule.onNodeWithText("Not signed in").assertIsDisplayed()
         openAndDismissAvatarSheet()
+        openSettingsAndCheckPermissions()
         openAboutAndSwitchTabs()
         composeRule.onNodeWithText("Sign in").performClick()
         composeRule.onNodeWithText("Sign in to continue").assertIsDisplayed()
+    }
+
+    /** Settings exposes every permission FlyDrop currently needs. */
+    private fun openSettingsAndCheckPermissions() {
+        composeRule.onNodeWithText("Settings").performClick()
+
+        composeRule.onNodeWithText("Permissions").assertIsDisplayed()
+        composeRule.onNodeWithText("Contacts").assertIsDisplayed()
+        composeRule.onNodeWithText("Nearby Wi-Fi").assertIsDisplayed()
+        composeRule.onNodeWithText("Bluetooth").assertIsDisplayed()
+        composeRule.onNodeWithText("Internet access").assertIsDisplayed()
+        composeRule.onNodeWithText("Install updates").assertIsDisplayed()
+        composeRule.onNodeWithText("Open Android settings").assertHasClickAction()
+
+        composeRule.onNodeWithContentDescription("Back").performClick()
+        composeRule.onNodeWithText("Not signed in").assertIsDisplayed()
     }
 
     /**
@@ -116,7 +132,9 @@ class FlyDropNavigationTest {
 
         aboutTab("Credits").assertIsNotSelected().performClick()
         aboutTab("Credits").assertIsSelected()
-        composeRule.onNodeWithText("Poppins").assertIsDisplayed()
+        composeRule.onNodeWithText("Designed & developed by Vaibhav Sen").assertIsDisplayed()
+        composeRule.onNodeWithText("Made with ❤️ in India 🇮🇳").assertIsDisplayed()
+        composeRule.onNodeWithText("Open Source").assertIsDisplayed()
         composeRule.onNodeWithText("Build type").assertDoesNotExist()
 
         aboutTab("Version").performClick()
@@ -136,20 +154,18 @@ class FlyDropNavigationTest {
 
     private fun assertNearbyAndToggleDiscovery() {
         composeRule.onNodeWithText("Nearby Friends").assertIsDisplayed()
+        composeRule.onNodeWithText("Searching for nearby friends…").assertIsDisplayed()
+        composeRule.onNodeWithText("Ashley Nelson").assertDoesNotExist()
+        composeRule.onNodeWithText("Gofar Badman").assertDoesNotExist()
         composeRule.onNodeWithContentDescription("Device discovery")
             .assertIsOn()
             .performClick()
             .assertIsOff()
+        composeRule.onNodeWithText("Nearby discovery is off.").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("Device discovery")
             .performClick()
             .assertIsOn()
-    }
-
-    private fun addGofarAsFriend() {
-        composeRule.onNodeWithContentDescription("Add Gofar Badman as friend")
-            .assertIsDisplayed()
-            .performClick()
-        composeRule.onNodeWithContentDescription("Add Gofar Badman as friend")
-            .assertDoesNotExist()
+        composeRule.onNodeWithText("Searching for nearby friends…").assertIsDisplayed()
     }
 
     private fun navigateTo(destination: String) {

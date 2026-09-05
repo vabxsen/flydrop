@@ -8,7 +8,9 @@ import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.FirebaseFirestoreException
 import com.google.firebase.firestore.SetOptions
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -111,7 +113,7 @@ class ProfileRepository(context: Context) {
                 val candidate = FlyIdRules.defaultHandle(uid, attempt)
                 val claimed = runCatching { db.reserve(uid, candidate, isChange = false) }
                 when {
-                    claimed.isSuccess -> return FlyProfile(uid, candidate, handleChanged = false)
+                    claimed.isSuccess -> return claimed.getOrThrow()
                     // Anything other than a collision will not resolve by
                     // trying a different id, so stop rather than hammer it.
                     claimed.exceptionOrNull() !is HandleTakenException -> return defaultProfile(uid)
@@ -134,16 +136,8 @@ class ProfileRepository(context: Context) {
         val db = firestore
             ?: return ClaimResult.Failure("FlyDrop IDs need Firebase, which is not configured.")
 
-        val current = runCatching { db.userDocument(uid).get().await().toProfile(uid) }
-            .getOrElse { return ClaimResult.Failure(it.friendlyMessage()) }
-        if (current != null && current.handle == handle) {
-            return ClaimResult.Success(current)
-        }
-        if (current?.handleChanged == true) return ClaimResult.AlreadyChanged
-
         return try {
-            db.reserve(uid, handle, isChange = true)
-            ClaimResult.Success(FlyProfile(uid, handle, handleChanged = true))
+            ClaimResult.Success(db.reserveWithReconnect(uid, handle, isChange = true))
         } catch (_: HandleTakenException) {
             ClaimResult.Taken
         } catch (_: AlreadyChangedException) {
@@ -160,7 +154,11 @@ class ProfileRepository(context: Context) {
      * reads guarding the two rules happen inside it - which is what makes two
      * devices racing for one id resolve to a single winner.
      */
-    private suspend fun FirebaseFirestore.reserve(uid: String, handle: String, isChange: Boolean) {
+    private suspend fun FirebaseFirestore.reserve(
+        uid: String,
+        handle: String,
+        isChange: Boolean,
+    ): FlyProfile =
         runTransaction { transaction ->
             val userRef = userDocument(uid)
             val handleRef = handleDocument(handle)
@@ -168,11 +166,17 @@ class ProfileRepository(context: Context) {
             // Firestore requires every read to precede every write in a transaction.
             val userSnapshot = transaction.get(userRef)
             val handleSnapshot = transaction.get(handleRef)
+            val current = userSnapshot.toProfile(uid)
 
-            if (isChange && userSnapshot.getBoolean(FIELD_HANDLE_CHANGED) == true) {
+            // Retyping the current id is a no-op. Handling it inside the
+            // transaction avoids a separate network read and keeps the answer
+            // consistent with the writes guarded below.
+            if (current?.handle == handle) return@runTransaction current
+
+            if (isChange && current?.handleChanged == true) {
                 throw AlreadyChangedException()
             }
-            if (handleSnapshot.exists() && handleSnapshot.getString(FIELD_UID) != uid) {
+            if (handleSnapshot.exists()) {
                 throw HandleTakenException()
             }
 
@@ -189,7 +193,28 @@ class ProfileRepository(context: Context) {
                 ),
                 SetOptions.merge(),
             )
+            FlyProfile(uid, handle, handleChanged = isChange)
         }.await()
+
+    /**
+     * Firestore reconnects itself normally. If it reports a transient network
+     * failure, explicitly re-enable its network and retry the whole transaction
+     * once. Retrying the transaction is safe because the server-side rules and
+     * document reads keep the operation atomic and idempotent.
+     */
+    private suspend fun FirebaseFirestore.reserveWithReconnect(
+        uid: String,
+        handle: String,
+        isChange: Boolean,
+    ): FlyProfile {
+        return try {
+            reserve(uid, handle, isChange)
+        } catch (error: FirebaseFirestoreException) {
+            if (!error.code.isTransientConnectionFailure()) throw error
+            runCatching { enableNetwork().await() }
+            delay(RECONNECT_DELAY_MS)
+            reserve(uid, handle, isChange)
+        }
     }
 
     private fun FirebaseFirestore.userDocument(uid: String): DocumentReference =
@@ -219,6 +244,7 @@ class ProfileRepository(context: Context) {
         const val FIELD_CREATED_AT = "createdAt"
         const val FIELD_UPDATED_AT = "updatedAt"
         const val DEFAULT_HANDLE_ATTEMPTS = 8
+        const val RECONNECT_DELAY_MS = 500L
     }
 }
 
@@ -230,5 +256,30 @@ private class HandleTakenException : Exception("That FlyDrop ID is taken.")
 
 private class AlreadyChangedException : Exception("This FlyDrop ID has already been changed.")
 
-private fun Throwable.friendlyMessage(): String =
-    message ?: "Could not reach FlyDrop (${this::class.simpleName})."
+private fun FirebaseFirestoreException.Code.isTransientConnectionFailure(): Boolean =
+    this == FirebaseFirestoreException.Code.UNAVAILABLE ||
+        this == FirebaseFirestoreException.Code.DEADLINE_EXCEEDED
+
+private fun Throwable.failureReason(): ProfileFailureReason =
+    when ((this as? FirebaseFirestoreException)?.code) {
+        FirebaseFirestoreException.Code.UNAVAILABLE,
+        FirebaseFirestoreException.Code.DEADLINE_EXCEEDED,
+        -> ProfileFailureReason.Connection
+
+        FirebaseFirestoreException.Code.UNAUTHENTICATED ->
+            ProfileFailureReason.Unauthenticated
+
+        FirebaseFirestoreException.Code.PERMISSION_DENIED ->
+            ProfileFailureReason.PermissionDenied
+
+        FirebaseFirestoreException.Code.NOT_FOUND,
+        FirebaseFirestoreException.Code.FAILED_PRECONDITION,
+        -> ProfileFailureReason.ServiceNotReady
+
+        FirebaseFirestoreException.Code.RESOURCE_EXHAUSTED ->
+            ProfileFailureReason.ServiceBusy
+
+        else -> ProfileFailureReason.Unknown
+    }
+
+private fun Throwable.friendlyMessage(): String = profileFailureMessage(failureReason())

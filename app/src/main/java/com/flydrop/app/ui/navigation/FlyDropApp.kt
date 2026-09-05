@@ -61,6 +61,7 @@ import com.flydrop.app.ui.nearby.NearbyScreen
 import com.flydrop.app.ui.nearby.NearbyViewModel
 import com.flydrop.app.ui.profile.ProfileScreen
 import com.flydrop.app.ui.profile.ProfileViewModel
+import com.flydrop.app.ui.settings.SettingsRoute
 import com.flydrop.app.ui.theme.FlyDrop
 import com.flydrop.app.ui.transfer.TransferScreen
 import com.flydrop.app.ui.transfer.TransferViewModel
@@ -69,6 +70,7 @@ private object Routes {
     const val HOME = "home"
     const val NEARBY = "nearby"
     const val PROFILE = "profile"
+    const val SETTINGS = "settings"
     const val ABOUT = "about"
     const val TRANSFER = "transfer/{peerId}/{peerName}/{direction}"
 
@@ -299,9 +301,24 @@ private fun FlyDropNavHost(
                     },
                     onRemoveAvatar = profileViewModel::removeAvatar,
                     onDismissAvatarSheet = profileViewModel::dismissAvatarSheet,
+                    onOpenSettings = { navController.navigate(Routes.SETTINGS) },
                     onOpenAbout = { navController.navigate(Routes.ABOUT) },
                     onSignOut = onSignOut,
                     contentPadding = screenPadding,
+                )
+            }
+
+            composable(
+                route = Routes.SETTINGS,
+                enterTransition = { slideInVertically(tween(300)) { it / 6 } + fadeIn(tween(300)) },
+                popExitTransition = { slideOutVertically(tween(260)) { it / 6 } + fadeOut(tween(260)) },
+            ) {
+                SettingsRoute(
+                    onBack = { navController.popBackStack() },
+                    contentPadding = PaddingValues(
+                        top = statusBarPadding,
+                        bottom = navigationBarPadding,
+                    ),
                 )
             }
 

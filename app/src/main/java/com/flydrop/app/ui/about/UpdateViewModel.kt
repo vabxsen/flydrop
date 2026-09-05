@@ -102,6 +102,18 @@ class UpdateViewModel(application: Application) : AndroidViewModel(application) 
         val release = state.release ?: return
         if (state.busy) return
 
+        // Defence in depth: eligibility normally rejects this before it can
+        // reach the UI, but never request a sensitive setting without an APK.
+        if (release.apkUrl.isNullOrBlank()) {
+            _uiState.update {
+                it.copy(
+                    status = UpdateStatus.Failed,
+                    message = "That release has no APK to install.",
+                )
+            }
+            return
+        }
+
         if (!repository.canInstallPackages()) {
             _uiState.update {
                 it.copy(

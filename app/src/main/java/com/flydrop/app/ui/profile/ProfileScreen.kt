@@ -79,6 +79,7 @@ fun ProfileScreen(
     onChooseAvatar: () -> Unit = {},
     onRemoveAvatar: () -> Unit = {},
     onDismissAvatarSheet: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     onOpenAbout: () -> Unit = {},
     onSignOut: () -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(0.dp),
@@ -162,7 +163,16 @@ fun ProfileScreen(
                 value = if (signedIn) "Signed in with Google" else "Not signed in",
             )
             Spacer(Modifier.height(dimens.cardGap))
-            AboutRow(onClick = onOpenAbout)
+            NavigationRow(
+                label = "Settings",
+                icon = FlyDropIcons.Settings,
+                onClick = onOpenSettings,
+            )
+            Spacer(Modifier.height(dimens.cardGap))
+            NavigationRow(
+                label = "About",
+                onClick = onOpenAbout,
+            )
 
             AnimatedVisibility(
                 visible = flyIdState.message != null,
@@ -446,6 +456,7 @@ private fun FlyIdEditorDialog(
     val colors = FlyDrop.colors
     val focusRequester = remember { FocusRequester() }
     val canSave = state.input.isNotEmpty() && state.inputError == null && !state.saving
+    val editorError = state.inputError ?: state.submissionError
 
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
@@ -476,14 +487,14 @@ private fun FlyIdEditorDialog(
                 )
 
                 AnimatedVisibility(
-                    visible = state.inputError != null,
+                    visible = editorError != null,
                     enter = fadeIn(tween(180)),
                     exit = fadeOut(tween(140)),
                 ) {
                     Column {
                         Spacer(Modifier.height(8.dp))
                         Text(
-                            text = state.inputError.orEmpty(),
+                            text = editorError.orEmpty(),
                             style = FlyDrop.type.metadata,
                             color = ErrorRed,
                         )
@@ -500,7 +511,7 @@ private fun FlyIdEditorDialog(
                     )
                     Spacer(Modifier.width(10.dp))
                     DialogButton(
-                        label = "Save",
+                        label = if (state.submissionError != null) "Retry" else "Save",
                         enabled = canSave,
                         filled = true,
                         loading = state.saving,
@@ -614,9 +625,13 @@ private fun DialogButton(
     }
 }
 
-/** The way through to About, carrying the chevron the app uses for navigation. */
 @Composable
-private fun AboutRow(onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun NavigationRow(
+    label: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+) {
     SoftCard(
         modifier = modifier.fillMaxWidth(),
         shape = FlyDrop.shapes.smallCard,
@@ -629,8 +644,17 @@ private fun AboutRow(onClick: () -> Unit, modifier: Modifier = Modifier) {
                 .padding(horizontal = 14.dp, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
+            if (icon != null) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = FlyDrop.colors.violet,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+            }
             Text(
-                text = "About",
+                text = label,
                 style = FlyDrop.type.cardTitle,
                 color = FlyDrop.colors.textPrimary,
                 modifier = Modifier.weight(1f),

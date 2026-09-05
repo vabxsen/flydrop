@@ -76,21 +76,7 @@ class UpdateRepository(private val context: Context) {
                 return@withContext UpdateCheck.Failed("GitHub returned a release this app could not read.")
             }
 
-            when {
-                // Reported before the comparison, because "you are up to date"
-                // would be a claim this cannot actually make about a tag it
-                // could not read.
-                AppVersion.parse(release.tag) == null ||
-                    AppVersion.parse(installedVersion) == null ->
-                    UpdateCheck.Failed(
-                        "The latest release is tagged \"${release.tag}\", which this app " +
-                            "cannot compare against $installedVersion.",
-                    )
-
-                AppVersion.isNewer(release.tag, installedVersion) -> UpdateCheck.Available(release)
-
-                else -> UpdateCheck.UpToDate(installedVersion)
-            }
+            classifyUpdate(release, installedVersion)
         }
 
     /** Null when the repository has no releases yet, which GitHub reports as a 404. */
@@ -277,6 +263,26 @@ class UpdateRepository(private val context: Context) {
         const val DOWNLOAD_TIMEOUT_MS = 60_000
         const val DIRECTORY = "updates"
     }
+}
+
+/** Pure update eligibility decision, kept separate from the GitHub request for testing. */
+internal fun classifyUpdate(release: AppRelease, installedVersion: String): UpdateCheck {
+    val candidate = AppVersion.parse(release.tag)
+    val installed = AppVersion.parse(installedVersion)
+    if (candidate == null || installed == null) {
+        return UpdateCheck.Failed(
+            "The latest release is tagged \"${release.tag}\", which this app " +
+                "cannot compare against $installedVersion.",
+        )
+    }
+
+    if (candidate <= installed) return UpdateCheck.UpToDate(installedVersion)
+    if (release.apkUrl.isNullOrBlank()) {
+        return UpdateCheck.Failed(
+            "A newer release (${release.tag}) exists, but it has no APK to install.",
+        )
+    }
+    return UpdateCheck.Available(release)
 }
 
 private class UpdateException(message: String) : Exception(message)

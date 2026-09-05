@@ -191,7 +191,7 @@ fun AboutScreen(
                     onInstallUpdate = onInstallUpdate,
                     onGrantInstallPermission = onGrantInstallPermission,
                 )
-                AboutTab.Credits -> CreditsTab()
+                AboutTab.Credits -> CreditsTab(info = info)
             }
 
             if (linkError != null) {
@@ -655,44 +655,36 @@ private fun LinkCard(
 }
 
 @Composable
-private fun CreditsTab(modifier: Modifier = Modifier) {
-    Column(modifier = modifier.fillMaxWidth()) {
-        CreditCard(
-            title = "FlyDrop",
-            body = "Copyright © 2026 Vaibhav Sen. Released under the MIT " +
-                "License; see LICENSE in the project root.",
-        )
-        Spacer(Modifier.height(FlyDrop.dimens.cardGap))
-        CreditCard(
-            title = "Poppins",
-            body = "The typeface throughout, used under the SIL Open Font " +
-                "License 1.1. The full licence text is bundled at " +
-                "licenses/Poppins-OFL.txt.",
-        )
-        Spacer(Modifier.height(FlyDrop.dimens.cardGap))
-        CreditCard(
-            title = "Jetpack Compose & Material 3",
-            body = "Kotlin, Jetpack Compose, Material 3 and Navigation Compose, " +
-                "under the Apache License 2.0.",
-        )
-        Spacer(Modifier.height(FlyDrop.dimens.cardGap))
-        CreditCard(
-            title = "Firebase & Credential Manager",
-            body = "Firebase Authentication and Cloud Firestore hold the account " +
-                "and its FlyDrop ID. Sign-in runs through AndroidX Credential " +
-                "Manager with Google Identity.",
-        )
-        Spacer(Modifier.height(FlyDrop.dimens.cardGap))
-        CreditCard(
-            title = "Artwork",
-            body = "There are no image assets. Avatars, icons, the discovery " +
-                "radar and the transfer arc are all drawn in Compose from code, " +
-                "so nothing is fetched and every screen renders offline.",
+private fun CreditsTab(info: AboutInfo, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        FlyDropLogo()
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = "Version ${info.versionName}",
+            style = FlyDrop.type.secondary,
+            color = FlyDrop.colors.textSecondary,
         )
 
-        Spacer(Modifier.height(18.dp))
+        Spacer(Modifier.height(24.dp))
+        CreditCard(
+            title = "Designed & developed by Vaibhav Sen",
+            body = "Made with ❤️ in India 🇮🇳",
+            textAlign = TextAlign.Center,
+        )
+        Spacer(Modifier.height(FlyDrop.dimens.cardGap))
+        CreditCard(
+            title = "Open Source",
+            body = "FlyDrop uses open-source software and libraries. " +
+                "The app source is released under the MIT License.",
+            textAlign = TextAlign.Center,
+        )
+
+        Spacer(Modifier.height(28.dp))
         Text(
-            text = "Built with Kotlin and Jetpack Compose.",
+            text = "© 2026 Vaibhav Sen. FlyDrop is open source.",
             style = FlyDrop.type.metadata,
             color = FlyDrop.colors.textTertiary,
             textAlign = TextAlign.Center,
@@ -731,7 +723,12 @@ private fun DetailCard(label: String, value: String, modifier: Modifier = Modifi
 }
 
 @Composable
-private fun CreditCard(title: String, body: String, modifier: Modifier = Modifier) {
+private fun CreditCard(
+    title: String,
+    body: String,
+    modifier: Modifier = Modifier,
+    textAlign: TextAlign = TextAlign.Start,
+) {
     SoftCard(
         modifier = modifier.fillMaxWidth(),
         shape = FlyDrop.shapes.smallCard,
@@ -746,12 +743,16 @@ private fun CreditCard(title: String, body: String, modifier: Modifier = Modifie
                 text = title,
                 style = FlyDrop.type.cardTitle,
                 color = FlyDrop.colors.textPrimary,
+                textAlign = textAlign,
+                modifier = Modifier.fillMaxWidth(),
             )
             Spacer(Modifier.height(4.dp))
             Text(
                 text = body,
                 style = FlyDrop.type.metadata,
                 color = FlyDrop.colors.textSecondary,
+                textAlign = textAlign,
+                modifier = Modifier.fillMaxWidth(),
             )
         }
     }
@@ -842,7 +843,7 @@ private fun AboutScreenCreditsPreview() {
                 .background(FlyDrop.colors.surface)
                 .padding(FlyDrop.dimens.screenPadding),
         ) {
-            CreditsTab()
+            CreditsTab(info = PreviewInfo)
         }
     }
 }

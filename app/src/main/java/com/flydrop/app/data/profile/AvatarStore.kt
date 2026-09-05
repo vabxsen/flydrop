@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.net.Uri
+import android.util.AtomicFile
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
@@ -22,8 +23,8 @@ sealed interface AvatarResult {
 }
 
 /**
- * Keeps the custom profile photo, one per account, in the app's private files
- * directory.
+ * Keeps the custom profile photo, one per account, in the app's private
+ * no-backup directory.
  *
  * The picked image is copied rather than referenced: a `content://` URI granted
  * by the photo picker is temporary, so holding onto one would leave the avatar
@@ -39,8 +40,13 @@ class AvatarStore(private val context: Context) {
     /** The photo for [key], or null when that account has not set one. */
     suspend fun load(key: String): ImageBitmap? = withContext(Dispatchers.IO) {
         val file = fileFor(key)
-        if (!file.exists()) return@withContext null
-        runCatching { BitmapFactory.decodeFile(file.path)?.asImageBitmap() }.getOrNull()
+        // openRead also recovers the previous file if the process stopped in
+        // the middle of an AtomicFile replacement.
+        runCatching {
+            AtomicFile(file).openRead().use { input ->
+                BitmapFactory.decodeStream(input)?.asImageBitmap()
+            }
+        }.getOrNull()
     }
 
     /**
@@ -138,19 +144,11 @@ class AvatarStore(private val context: Context) {
      */
     private fun write(key: String, bitmap: Bitmap): Boolean {
         val target = fileFor(key)
-        target.parentFile?.mkdirs()
-        val temp = File(target.parentFile, "${target.name}.tmp")
-        val compressed = temp.outputStream().use {
+        return atomicWrite(target) { output ->
             // PNG rather than JPEG: a picked image may carry transparency, and
             // JPEG would flatten it to black.
-            bitmap.compress(Bitmap.CompressFormat.PNG, 100, it)
+            bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
         }
-        if (!compressed) {
-            temp.delete()
-            return false
-        }
-        target.delete()
-        return temp.renameTo(target)
     }
 
     /**
@@ -159,7 +157,48 @@ class AvatarStore(private val context: Context) {
      */
     private fun fileFor(key: String): File {
         val safe = key.filter { it.isLetterOrDigit() }.take(64).ifEmpty { "default" }
-        return File(File(context.filesDir, DIRECTORY), "$safe.png")
+        val target = File(File(context.noBackupFilesDir, DIRECTORY), "$safe.png")
+        migrateLegacyFile(File(File(context.filesDir, DIRECTORY), "$safe.png"), target)
+        return target
+    }
+
+    /** Moves photos created by older releases out of backup-eligible storage. */
+    private fun migrateLegacyFile(legacy: File, target: File) {
+        if (!legacy.exists()) return
+        if (target.exists()) {
+            legacy.delete()
+            return
+        }
+
+        val migrated = atomicWrite(target) { output ->
+            legacy.inputStream().use { input -> input.copyTo(output) }
+            true
+        }
+        if (migrated) legacy.delete()
+    }
+
+    /** [AtomicFile] restores the previous file if writing or syncing fails. */
+    private fun atomicWrite(target: File, write: (java.io.FileOutputStream) -> Boolean): Boolean {
+        target.parentFile?.mkdirs()
+        val atomicFile = AtomicFile(target)
+        val output = try {
+            atomicFile.startWrite()
+        } catch (_: Exception) {
+            return false
+        }
+
+        return try {
+            if (!write(output)) {
+                atomicFile.failWrite(output)
+                false
+            } else {
+                atomicFile.finishWrite(output)
+                true
+            }
+        } catch (_: Exception) {
+            runCatching { atomicFile.failWrite(output) }
+            false
+        }
     }
 
     private fun sampleSizeFor(width: Int, height: Int): Int {

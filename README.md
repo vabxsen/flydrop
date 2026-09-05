@@ -48,7 +48,7 @@ Peers are always drawn this way.
 The signed-in user can replace their own with a photo, from the avatar's camera
 badge on Profile. It comes from Android's system photo picker, which returns one
 image and needs **no storage permission**, so the app never asks for the gallery.
-`data/profile/AvatarStore.kt` copies the pick into the app's private files
+`data/profile/AvatarStore.kt` copies the pick into the app's private no-backup
 directory rather than holding the picker's `content://` URI, which is temporary
 and would leave the avatar working until the next reboot and then vanishing. On
 the way in the image is oriented from its EXIF tag, centre-cropped square and
@@ -86,7 +86,8 @@ Run the local model tests and the Android UI flow on a connected emulator:
 The UI test covers guest entry, contacts permission, the initially empty favourites
 state, notifications, Send, Receive, scan, discovery, adding a nearby friend,
 bottom navigation, profile/account actions, the profile photo sheet and the About
-tabs. Unit tests cover favourite selection, transfer progress, FlyDrop ID
+tabs. Additional device tests verify no-backup avatar storage, legacy migration
+and recovery from an interrupted replacement. Unit tests cover favourite selection, transfer progress, FlyDrop ID
 validation, the bug-report URL, version comparison and release parsing.
 
 `local.properties` is not committed — point `sdk.dir` at your Android SDK, or set
@@ -139,10 +140,12 @@ Both rules live in Firestore rather than in the client:
 `ProfileRepository` writes both documents in a single transaction, so a race
 between two devices resolves to one winner. That is the cooperative half;
 `firestore.rules` is the authoritative half, since a modified client can skip the
-repository entirely. Deploy it alongside the app:
+repository entirely. `firebase.json` maps the checked-in rules file for the
+Firebase CLI. Log in, then deploy it to your own Firebase project:
 
 ```bash
-firebase deploy --only firestore:rules
+firebase login
+firebase deploy --only firestore:rules --project YOUR_PROJECT_ID
 ```
 
 Without Firebase configured the app still runs: Profile shows the derived id and

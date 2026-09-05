@@ -49,6 +49,24 @@ class AppVersionTest {
     }
 
     @Test
+    fun preReleaseIdentifiersFollowSemanticVersionPrecedence() {
+        assertTrue(AppVersion.parse("1.2.0-beta.10")!! > AppVersion.parse("1.2.0-beta.2")!!)
+        assertTrue(AppVersion.parse("1.2.0-beta.2")!! < AppVersion.parse("1.2.0-beta.alpha")!!)
+        assertTrue(AppVersion.parse("1.2.0-beta.2")!! > AppVersion.parse("1.2.0-beta")!!)
+        assertTrue(AppVersion.parse("1.2.0-beta.99999999999999999999")!! >
+            AppVersion.parse("1.2.0-beta.10")!!)
+    }
+
+    @Test
+    fun buildMetadataDoesNotAffectPrecedence() {
+        assertEquals(
+            0,
+            AppVersion.parse("1.2.0-beta.2+build.9")!!
+                .compareTo(AppVersion.parse("1.2.0-beta.2+build.10")!!),
+        )
+    }
+
+    @Test
     fun anUpdateIsOfferedOnlyForSomethingNewer() {
         assertTrue(AppVersion.isNewer("v1.0.2", "1.0.1"))
         assertTrue(AppVersion.isNewer("v2.0.0", "1.9.9"))

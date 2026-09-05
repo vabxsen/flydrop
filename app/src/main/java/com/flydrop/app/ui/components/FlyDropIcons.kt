@@ -37,6 +37,68 @@ private fun strokeIcon(
 
 object FlyDropIcons {
 
+    val Settings: ImageVector by lazy {
+        strokeIcon("Settings") {
+            moveTo(12.0f, 8.7f)
+            curveTo(13.8f, 8.7f, 15.3f, 10.2f, 15.3f, 12.0f)
+            curveTo(15.3f, 13.8f, 13.8f, 15.3f, 12.0f, 15.3f)
+            curveTo(10.2f, 15.3f, 8.7f, 13.8f, 8.7f, 12.0f)
+            curveTo(8.7f, 10.2f, 10.2f, 8.7f, 12.0f, 8.7f); close()
+            moveTo(19.0f, 13.5f)
+            lineTo(21.0f, 15.0f); lineTo(18.9f, 18.7f); lineTo(16.4f, 17.7f)
+            curveTo(15.7f, 18.2f, 15.0f, 18.6f, 14.2f, 18.9f)
+            lineTo(13.8f, 21.5f); horizontalLineTo(9.6f); lineTo(9.2f, 18.9f)
+            curveTo(8.4f, 18.6f, 7.7f, 18.2f, 7.0f, 17.7f)
+            lineTo(4.5f, 18.7f); lineTo(2.4f, 15.0f); lineTo(4.4f, 13.5f)
+            curveTo(4.3f, 13.0f, 4.2f, 12.5f, 4.2f, 12.0f)
+            curveTo(4.2f, 11.5f, 4.3f, 11.0f, 4.4f, 10.5f)
+            lineTo(2.4f, 9.0f); lineTo(4.5f, 5.3f); lineTo(7.0f, 6.3f)
+            curveTo(7.7f, 5.8f, 8.4f, 5.4f, 9.2f, 5.1f)
+            lineTo(9.6f, 2.5f); horizontalLineTo(13.8f); lineTo(14.2f, 5.1f)
+            curveTo(15.0f, 5.4f, 15.7f, 5.8f, 16.4f, 6.3f)
+            lineTo(18.9f, 5.3f); lineTo(21.0f, 9.0f); lineTo(19.0f, 10.5f)
+            curveTo(19.1f, 11.0f, 19.2f, 11.5f, 19.2f, 12.0f)
+            curveTo(19.2f, 12.5f, 19.1f, 13.0f, 19.0f, 13.5f); close()
+        }
+    }
+
+    val Contacts: ImageVector by lazy {
+        strokeIcon("Contacts") {
+            moveTo(9.0f, 4.2f)
+            curveTo(10.8f, 4.2f, 12.2f, 5.6f, 12.2f, 7.4f)
+            curveTo(12.2f, 9.2f, 10.8f, 10.6f, 9.0f, 10.6f)
+            curveTo(7.2f, 10.6f, 5.8f, 9.2f, 5.8f, 7.4f)
+            curveTo(5.8f, 5.6f, 7.2f, 4.2f, 9.0f, 4.2f); close()
+            moveTo(3.8f, 18.9f)
+            curveTo(3.8f, 15.7f, 6.1f, 13.4f, 9.0f, 13.4f)
+            curveTo(11.9f, 13.4f, 14.2f, 15.7f, 14.2f, 18.9f)
+            moveTo(15.4f, 5.8f)
+            curveTo(17.1f, 6.1f, 18.3f, 7.5f, 18.3f, 9.2f)
+            curveTo(18.3f, 10.9f, 17.1f, 12.3f, 15.4f, 12.6f)
+            moveTo(16.8f, 14.5f)
+            curveTo(18.9f, 15.2f, 20.2f, 16.9f, 20.2f, 19.3f)
+        }
+    }
+
+    val Wifi: ImageVector by lazy {
+        strokeIcon("Wifi", strokeWidth = 1.9f) {
+            moveTo(3.1f, 8.8f)
+            curveTo(8.0f, 4.6f, 16.0f, 4.6f, 20.9f, 8.8f)
+            moveTo(6.2f, 12.0f)
+            curveTo(9.4f, 9.3f, 14.6f, 9.3f, 17.8f, 12.0f)
+            moveTo(9.4f, 15.2f)
+            curveTo(10.9f, 13.9f, 13.1f, 13.9f, 14.6f, 15.2f)
+            moveTo(12.0f, 18.5f); lineTo(12.0f, 18.5f)
+        }
+    }
+
+    val Bluetooth: ImageVector by lazy {
+        strokeIcon("Bluetooth", strokeWidth = 1.9f) {
+            moveTo(9.0f, 7.0f); lineTo(16.5f, 14.5f); lineTo(12.0f, 19.0f)
+            verticalLineTo(5.0f); lineTo(16.5f, 9.5f); lineTo(9.0f, 17.0f)
+        }
+    }
+
     val Send: ImageVector by lazy {
         strokeIcon("Send") {
             moveTo(21.4f, 3.0f); lineTo(2.8f, 10.6f); lineTo(10.6f, 13.9f)

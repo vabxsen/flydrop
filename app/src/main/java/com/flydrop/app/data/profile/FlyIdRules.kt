@@ -26,7 +26,7 @@ object FlyIdRules {
     private val SHAPE = Regex("^[a-z0-9](?:[a-z0-9._]*[a-z0-9])?$")
     private val DOUBLE_SEPARATOR = Regex("[._]{2}")
 
-    /** Held back so nobody can pose as the app or its operators. */
+    /** Held back so nobody can pose as the app or its operators. Keep in sync with firestore.rules. */
     private val RESERVED = setOf(
         "flydrop", "fly", "admin", "administrator", "support", "help", "root",
         "system", "official", "team", "staff", "moderator", "security", "me",

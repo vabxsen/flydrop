@@ -32,6 +32,8 @@ data class ProfileUiState(
     val input: String = "",
     /** Live shape feedback while typing; blocks Save when set. */
     val inputError: String? = null,
+    /** Remote failure from the last Save; shown without blocking a retry. */
+    val submissionError: String? = null,
     val saving: Boolean = false,
     /** Outcome of the last attempt, shown under the field or as confirmation. */
     val message: String? = null,
@@ -119,6 +121,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 // not something anyone wants to edit character by character.
                 input = "",
                 inputError = null,
+                submissionError = null,
                 message = null,
             )
         }
@@ -126,7 +129,14 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
 
     fun dismissEditor() {
         if (_uiState.value.saving) return
-        _uiState.update { it.copy(editorOpen = false, input = "", inputError = null) }
+        _uiState.update {
+            it.copy(
+                editorOpen = false,
+                input = "",
+                inputError = null,
+                submissionError = null,
+            )
+        }
     }
 
     fun onInputChange(value: String) {
@@ -140,6 +150,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 } else {
                     FlyIdRules.validate(normalised)?.message
                 },
+                submissionError = null,
                 message = null,
             )
         }
@@ -152,11 +163,20 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
 
         val handle = FlyIdRules.normalise(state.input)
         FlyIdRules.validate(handle)?.let { error ->
-            _uiState.update { it.copy(inputError = error.message) }
+            _uiState.update {
+                it.copy(inputError = error.message, submissionError = null)
+            }
             return
         }
 
-        _uiState.update { it.copy(saving = true, inputError = null, message = null) }
+        _uiState.update {
+            it.copy(
+                saving = true,
+                inputError = null,
+                submissionError = null,
+                message = null,
+            )
+        }
         viewModelScope.launch {
             when (val result = repository.claimFlyId(uid, handle)) {
                 is ClaimResult.Success -> _uiState.update {
@@ -166,6 +186,7 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                         saving = false,
                         editorOpen = false,
                         input = "",
+                        submissionError = null,
                         flyId = result.profile.flyId,
                         canEdit = result.profile.editable && repository.isAvailable,
                         changed = result.profile.handleChanged,
@@ -174,7 +195,11 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 }
 
                 ClaimResult.Taken -> _uiState.update {
-                    it.copy(saving = false, inputError = "Someone already has that id.")
+                    it.copy(
+                        saving = false,
+                        inputError = "Someone already has that id.",
+                        submissionError = null,
+                    )
                 }
 
                 ClaimResult.AlreadyChanged -> _uiState.update {
@@ -188,11 +213,19 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
                 }
 
                 is ClaimResult.Invalid -> _uiState.update {
-                    it.copy(saving = false, inputError = result.error.message)
+                    it.copy(
+                        saving = false,
+                        inputError = result.error.message,
+                        submissionError = null,
+                    )
                 }
 
                 is ClaimResult.Failure -> _uiState.update {
-                    it.copy(saving = false, inputError = result.message)
+                    it.copy(
+                        saving = false,
+                        inputError = null,
+                        submissionError = result.message,
+                    )
                 }
             }
         }

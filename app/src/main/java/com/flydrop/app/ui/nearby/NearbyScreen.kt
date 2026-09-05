@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -88,6 +89,7 @@ fun NearbyScreen(
 
         NearbyFriendsPanel(
             friends = state.nearbyFriends,
+            discovering = state.discoverable,
             selectedUserId = state.selectedUserId,
             onSelectUser = onSelectUser,
             onAddFriend = onAddFriend,
@@ -99,6 +101,7 @@ fun NearbyScreen(
 @Composable
 private fun NearbyFriendsPanel(
     friends: List<FlyUser>,
+    discovering: Boolean,
     selectedUserId: String?,
     onSelectUser: (String) -> Unit,
     onAddFriend: (FlyUser) -> Unit,
@@ -118,20 +121,33 @@ private fun NearbyFriendsPanel(
             modifier = Modifier.padding(horizontal = dimens.screenPadding),
         )
         Spacer(Modifier.height(12.dp))
-        LazyRow(
-            contentPadding = PaddingValues(horizontal = dimens.screenPadding),
-            horizontalArrangement = Arrangement.spacedBy(dimens.nearbyCardGap),
-        ) {
-            items(friends, key = { it.id }) { friend ->
-                NearbyFriendCard(
-                    user = friend,
-                    selected = friend.id == selectedUserId,
-                    onClick = { onSelectUser(friend.id) },
-                    onAction = { onAddFriend(friend) },
-                    modifier = Modifier.animateItem(
-                        placementSpec = spring(stiffness = 400f),
-                    ),
-                )
+        if (friends.isEmpty()) {
+            Text(
+                text = if (discovering) {
+                    "Searching for nearby friends…"
+                } else {
+                    "Nearby discovery is off."
+                },
+                style = FlyDrop.type.secondary,
+                color = FlyDrop.colors.textSecondary,
+                modifier = Modifier.padding(horizontal = dimens.screenPadding),
+            )
+        } else {
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = dimens.screenPadding),
+                horizontalArrangement = Arrangement.spacedBy(dimens.nearbyCardGap),
+            ) {
+                items(friends, key = { it.id }) { friend ->
+                    NearbyFriendCard(
+                        user = friend,
+                        selected = friend.id == selectedUserId,
+                        onClick = { onSelectUser(friend.id) },
+                        onAction = { onAddFriend(friend) },
+                        modifier = Modifier.animateItem(
+                            placementSpec = spring(stiffness = 400f),
+                        ),
+                    )
+                }
             }
         }
         Spacer(Modifier.height(16.dp))
@@ -143,7 +159,11 @@ private fun NearbyFriendsPanel(
 private fun NearbyScreenPreview() {
     FlyDropTheme {
         NearbyScreen(
-            state = NearbyUiState(devices = MockData.radarDevices),
+            state = NearbyUiState(
+                devices = MockData.radarDevices,
+                nearbyFriends = MockData.nearbyFriends,
+                selectedUserId = MockData.ashley.id,
+            ),
             onDiscoverableChange = {},
             onSelectUser = {},
             onAddFriend = {},
