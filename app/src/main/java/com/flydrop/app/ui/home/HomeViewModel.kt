@@ -52,7 +52,20 @@ data class HomeUiState(
     val contactsAccess: ContactsAccess = ContactsAccess.PermissionRequired,
     val hasNotifications: Boolean = true,
     val search: UserSearchState = UserSearchState(),
-)
+    /** Narrows the Contacts list by name. Empty means "show them all". */
+    val contactQuery: String = "",
+) {
+    /** [contacts] filtered by [contactQuery]; what the Contacts section lists. */
+    val visibleContacts: List<FlyUser>
+        get() {
+            val query = contactQuery.trim()
+            return if (query.isEmpty()) {
+                contacts
+            } else {
+                contacts.filter { it.name.contains(query, ignoreCase = true) }
+            }
+        }
+}
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -96,6 +109,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearSearch() {
         _uiState.update { it.copy(search = UserSearchState()) }
+    }
+
+    fun onContactQueryChange(value: String) {
+        _uiState.update { it.copy(contactQuery = value) }
     }
 
     fun searchFlyId() {

@@ -3,7 +3,9 @@ package com.flydrop.app.ui.components
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
@@ -16,7 +18,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
+import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,8 +27,12 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.flydrop.app.data.MockData
 import com.flydrop.app.data.model.RadarDevice
@@ -34,6 +40,7 @@ import com.flydrop.app.ui.theme.FlyDrop
 import com.flydrop.app.ui.theme.FlyDropTheme
 import kotlin.math.cos
 import kotlin.math.min
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /** A decorative signal dot scattered on the rings. */
@@ -54,14 +61,35 @@ private val radarDots = listOf(
 /** Ring radii as a fraction of the radar's outer radius. */
 private val ringFractions = listOf(1f, 0.70f, 0.42f)
 
+/** One full turn of the devices around the rings. Slow enough to read as drift. */
+private const val ORBIT_PERIOD_MS = 48_000
+
+/** The ambient dots drift slower still, so the two layers never lock together. */
+private const val DOT_ORBIT_PERIOD_MS = 90_000
+
+/** One turn of the sweeping beam. */
+private const val SWEEP_PERIOD_MS = 4_000
+
+/** How long a device takes to travel between its orbit and the centre. */
+private const val CONNECT_MS = 460
+
+/** The size a device grows to once it is centred as the chosen recipient. */
+private val ConnectedAvatarSize = 74.dp
+
 /**
  * The circular discovery visualisation: thin concentric rings, a soft glowing
- * centre that pulses while scanning, scattered signal dots, and the discovered
- * devices placed around the rings.
+ * centre, a radar beam sweeping around it, scattered signal dots, and the
+ * devices drifting slowly along the rings.
+ *
+ * Selecting a device flies it into the centre, where it reads as the chosen
+ * recipient; the violet "you" ring fades out behind it and the remaining
+ * devices keep orbiting. Selecting it again sends it back to its ring.
  *
  * Positions are polar (angle + radius fraction) and resolved against the
  * measured size, so the whole composition scales with the screen instead of
- * being pinned to fixed coordinates.
+ * being pinned to fixed coordinates. Every animated value is read in the
+ * layout or draw phase rather than in composition, so the orbit and the sweep
+ * run without recomposing the radar each frame.
  */
 @Composable
 fun RadarView(
@@ -75,7 +103,7 @@ fun RadarView(
     val transition = rememberInfiniteTransition(label = "radar")
 
     // One slow sweep outward; calm rather than attention-grabbing.
-    val pulse by transition.animateFloat(
+    val pulse = transition.animateFloat(
         initialValue = 0f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
@@ -85,7 +113,7 @@ fun RadarView(
         label = "radarPulse",
     )
     // Gentle breathing of the central glow.
-    val breathe by transition.animateFloat(
+    val breathe = transition.animateFloat(
         initialValue = 0.94f,
         targetValue = 1.06f,
         animationSpec = infiniteRepeatable(
@@ -93,6 +121,40 @@ fun RadarView(
             repeatMode = RepeatMode.Reverse,
         ),
         label = "radarBreathe",
+    )
+    val sweep = transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = SWEEP_PERIOD_MS, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "radarSweep",
+    )
+    val orbit = transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = ORBIT_PERIOD_MS, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "radarOrbit",
+    )
+    val dotOrbit = transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = DOT_ORBIT_PERIOD_MS, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "radarDotOrbit",
+    )
+
+    // "You" only holds the centre while nothing has been brought into it.
+    val youAlpha = animateFloatAsState(
+        targetValue = if (selectedUserId == null) 1f else 0f,
+        animationSpec = tween(durationMillis = CONNECT_MS, easing = FastOutSlowInEasing),
+        label = "radarYouAlpha",
     )
 
     BoxWithConstraints(modifier = modifier, contentAlignment = Alignment.Center) {
@@ -111,17 +173,23 @@ fun RadarView(
                 )
             }
 
+            drawSweep(center, radiusPx, sweep.value, colors.violet)
+
             if (scanning) {
-                drawPulse(center, radiusPx, pulse, colors.violet)
+                drawPulse(center, radiusPx, pulse.value, colors.violet)
             }
 
-            drawCentreGlow(center, radiusPx * 0.36f * breathe, colors.violet)
+            drawCentreGlow(center, radiusPx * 0.36f * breathe.value, colors.violet)
         }
 
         radarDots.forEach { dot ->
             Box(
                 modifier = Modifier
-                    .polarOffset(dot.angleDegrees, outerRadius * dot.radiusFraction)
+                    .polarOffset(
+                        outerRadius = outerRadius,
+                        radiusFraction = { dot.radiusFraction },
+                        angleDegrees = { dot.angleDegrees + dotOrbit.value },
+                    )
                     .size(dot.size),
             ) {
                 Canvas(Modifier.fillMaxSize()) {
@@ -134,20 +202,46 @@ fun RadarView(
         Canvas(modifier = Modifier.size(30.dp)) {
             val stroke = 5.dp.toPx()
             drawCircle(
-                color = colors.violet,
+                color = colors.violet.copy(alpha = youAlpha.value),
                 radius = size.minDimension / 2f - stroke / 2f,
                 style = Stroke(width = stroke),
             )
         }
 
-        devices.forEach { device ->
+        // The centred device is drawn last so it sits above the others.
+        devices.sortedBy { it.user.id == selectedUserId }.forEach { device ->
+            val connected = device.user.id == selectedUserId
+            val radiusFraction = animateFloatAsState(
+                targetValue = if (connected) 0f else device.radiusFraction,
+                animationSpec = tween(durationMillis = CONNECT_MS, easing = FastOutSlowInEasing),
+                label = "radarDeviceRadius",
+            )
+            val avatarSize = animateDpAsState(
+                targetValue = if (connected) ConnectedAvatarSize else device.avatarSize.dp,
+                animationSpec = tween(durationMillis = CONNECT_MS, easing = FastOutSlowInEasing),
+                label = "radarDeviceSize",
+            )
+
             Avatar(
                 seed = device.user.avatarSeed,
-                size = device.avatarSize.dp,
-                ringColor = if (device.user.id == selectedUserId) colors.violet else null,
+                size = avatarSize.value,
+                ringColor = if (connected) colors.violet else null,
                 modifier = Modifier
-                    .polarOffset(device.angleDegrees, outerRadius * device.radiusFraction)
+                    .polarOffset(
+                        outerRadius = outerRadius,
+                        radiusFraction = { radiusFraction.value },
+                        // A device on its way to the centre keeps drifting, so it
+                        // curves in rather than snapping along a straight line.
+                        angleDegrees = { device.angleDegrees + orbit.value },
+                    )
                     .clip(CircleShape)
+                    .semantics {
+                        contentDescription = if (connected) {
+                            "${device.user.name}, selected"
+                        } else {
+                            device.user.name
+                        }
+                    }
                     .clickable { onDeviceClick(device) },
             )
         }
@@ -157,13 +251,41 @@ fun RadarView(
 /**
  * Offsets a centred child onto polar coordinates, with 0 degrees at 12 o'clock
  * and positive angles running clockwise.
+ *
+ * The position is supplied as lambdas and resolved in the layout phase, so an
+ * animating angle or radius moves the child without recomposing it.
  */
-private fun Modifier.polarOffset(angleDegrees: Float, radius: Dp): Modifier {
-    val radians = Math.toRadians((angleDegrees - 90f).toDouble())
-    return this.offset(
-        x = radius * cos(radians).toFloat(),
-        y = radius * sin(radians).toFloat(),
+private fun Modifier.polarOffset(
+    outerRadius: Dp,
+    radiusFraction: () -> Float,
+    angleDegrees: () -> Float,
+): Modifier = this.offset {
+    val radius = outerRadius.toPx() * radiusFraction()
+    val radians = Math.toRadians((angleDegrees() - 90f).toDouble())
+    IntOffset(
+        x = (radius * cos(radians)).roundToInt(),
+        y = (radius * sin(radians)).roundToInt(),
     )
+}
+
+/** The beam: a soft wedge trailing behind its leading edge, like a radar sweep. */
+private fun DrawScope.drawSweep(center: Offset, radiusPx: Float, degrees: Float, color: Color) {
+    // sweepGradient starts at 3 o'clock, so the wedge is rotated into place with
+    // the same -90 degree correction the device positions use.
+    rotate(degrees = degrees - 90f, pivot = center) {
+        drawCircle(
+            brush = Brush.sweepGradient(
+                0.00f to color.copy(alpha = 0f),
+                0.10f to color.copy(alpha = 0.05f),
+                0.17f to color.copy(alpha = 0.13f),
+                0.18f to color.copy(alpha = 0f),
+                1.00f to color.copy(alpha = 0f),
+                center = center,
+            ),
+            radius = radiusPx,
+            center = center,
+        )
+    }
 }
 
 /** An expanding, fading ring that reads as an outgoing discovery ping. */

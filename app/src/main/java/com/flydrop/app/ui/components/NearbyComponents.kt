@@ -45,9 +45,9 @@ import com.flydrop.app.ui.theme.FlyDrop
 import com.flydrop.app.ui.theme.FlyDropTheme
 
 /**
- * The discoverability switch in the Nearby header. Material's [androidx.compose.material3.Switch]
- * has a visible outline, a smaller thumb and a wider track than the reference,
- * so this is drawn directly.
+ * The Quick Share visibility switch in the Nearby header. Material's
+ * [androidx.compose.material3.Switch] has a visible outline, a smaller thumb
+ * and a wider track than the reference, so this is drawn directly.
  */
 @Composable
 fun DiscoverySwitch(
@@ -77,7 +77,7 @@ fun DiscoverySwitch(
             .size(width = dimens.toggleWidth, height = dimens.toggleHeight)
             .clip(CircleShape)
             .background(trackColor, CircleShape)
-            .semantics { contentDescription = "Device discovery" }
+            .semantics { contentDescription = "Quick Share visibility" }
             .toggleable(
                 value = checked,
                 interactionSource = remember { MutableInteractionSource() },

@@ -26,6 +26,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -81,6 +82,10 @@ private object Routes {
 }
 
 private val tabRoutes = listOf(Routes.HOME, Routes.NEARBY, Routes.PROFILE)
+
+private const val QUICK_SHARE_UNAVAILABLE =
+    "Quick Share settings could not be opened. Open Quick Share from Android Settings or the " +
+        "notification shade."
 
 /**
  * Top-level gate: splash while the Firebase session resolves, then either the
@@ -282,6 +287,7 @@ private fun FlyDropNavHost(
                         inviteError = null
                         invitee = it
                     },
+                    onContactQueryChange = viewModel::onContactQueryChange,
                     searchEnabled = signedInUser != null,
                     avatar = flyIdState.avatar,
                     contentPadding = screenPadding,
@@ -309,9 +315,22 @@ private fun FlyDropNavHost(
 
             composable(Routes.NEARBY) {
                 var shareError by remember { mutableStateOf<String?>(null) }
+                // Android publishes no API that reads or sets Quick Share
+                // visibility, so the switch only records that the user asked
+                // for it and sends them to the screen that actually sets it.
+                var discoverable by rememberSaveable { mutableStateOf(false) }
 
                 NearbyScreen(
                     onPickFiles = { filePicker.launch(arrayOf("*/*")) },
+                    discoverable = discoverable,
+                    onDiscoverableChange = { wanted ->
+                        if (openQuickShareReceive(context)) {
+                            discoverable = wanted
+                            shareError = null
+                        } else {
+                            shareError = QUICK_SHARE_UNAVAILABLE
+                        }
+                    },
                     pickedFiles = pickedFiles,
                     onClearPickedFiles = { pickedFiles = emptyList() },
                     onSendWithQuickShare = {
@@ -322,12 +341,8 @@ private fun FlyDropNavHost(
                         }
                     },
                     onReceiveWithQuickShare = {
-                        shareError = if (openQuickShareReceive(context)) {
-                            null
-                        } else {
-                            "Quick Share settings could not be opened. Open Quick Share from " +
-                                "Android Settings or the notification shade."
-                        }
+                        shareError =
+                            if (openQuickShareReceive(context)) null else QUICK_SHARE_UNAVAILABLE
                     },
                     shareError = shareError,
                     onDismissShareError = { shareError = null },

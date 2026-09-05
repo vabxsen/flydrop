@@ -35,13 +35,19 @@ import com.flydrop.app.data.model.FlyUser
 import com.flydrop.app.ui.theme.FlyDrop
 import com.flydrop.app.ui.theme.FlyDropTheme
 
-/** Section heading, with the optional violet "See All" action on the right. */
+/**
+ * Section heading, with the optional violet "See All" action on the right.
+ *
+ * [trailing] takes the same right-hand slot for headings that need a control
+ * rather than a word, such as the contacts search toggle.
+ */
 @Composable
 fun SectionHeader(
     title: String,
     modifier: Modifier = Modifier,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null,
 ) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -64,6 +70,7 @@ fun SectionHeader(
                     .padding(horizontal = 4.dp, vertical = 2.dp),
             )
         }
+        trailing?.invoke()
     }
 }
 

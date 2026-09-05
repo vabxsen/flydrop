@@ -356,6 +356,19 @@ object FlyDropIcons {
         }
     }
 
+    /** Magnifying glass: lens circle with the handle leaving it at 45 degrees. */
+    val Search: ImageVector by lazy {
+        strokeIcon("Search", strokeWidth = 1.9f) {
+            moveTo(10.6f, 4.6f)
+            curveTo(13.9f, 4.6f, 16.6f, 7.3f, 16.6f, 10.6f)
+            curveTo(16.6f, 13.9f, 13.9f, 16.6f, 10.6f, 16.6f)
+            curveTo(7.3f, 16.6f, 4.6f, 13.9f, 4.6f, 10.6f)
+            curveTo(4.6f, 7.3f, 7.3f, 4.6f, 10.6f, 4.6f)
+            close()
+            moveTo(14.9f, 14.9f); lineTo(19.4f, 19.4f)
+        }
+    }
+
     val Star: ImageVector by lazy {
         strokeIcon("Star", strokeWidth = 1.8f) {
             moveTo(12.0f, 3.2f)

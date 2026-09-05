@@ -3,7 +3,11 @@ package com.flydrop.app.data
 import com.flydrop.app.data.model.FlyUser
 import com.flydrop.app.data.model.RadarDevice
 
-/** Preview-only people used by Compose tooling; production screens never show them. */
+/**
+ * Sample people. Compose previews use all of them; the Nearby radar also shows
+ * [radarDevices] and Home shows [nearbyFriends] as illustration, because
+ * FlyDrop has no discovery transport that could name real ones.
+ */
 object MockData {
 
     val guestUser = FlyUser(
