@@ -12,3 +12,10 @@ captures/
 # applied conditionally in app/build.gradle.kts, so the project still builds
 # without it - sign-in simply reports that it is not configured.
 app/google-services.json
+
+# Release signing. Never commit these: the keystore is the app's permanent
+# identity and the properties file holds its passwords.
+*.jks
+*.keystore
+keystore.properties
+dist/
