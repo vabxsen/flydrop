@@ -1,0 +1,16 @@
+# Normalise to LF in the repository. Without this, committing from Windows can
+# store gradlew with CRLF endings, which makes it unrunnable on Linux and macOS
+# (and therefore on CI).
+* text=auto eol=lf
+
+# Must keep LF: it is executed as a shell script.
+gradlew text eol=lf
+
+# Windows batch files need CRLF.
+*.bat text eol=crlf
+
+# Never touch binaries.
+*.ttf  binary
+*.png  binary
+*.jar  binary
+*.webp binary

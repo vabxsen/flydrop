@@ -1,0 +1,14 @@
+*.iml
+.gradle/
+local.properties
+.idea/
+.DS_Store
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Firebase config: kept out of this public repo. The Google Services plugin is
+# applied conditionally in app/build.gradle.kts, so the project still builds
+# without it - sign-in simply reports that it is not configured.
+app/google-services.json
