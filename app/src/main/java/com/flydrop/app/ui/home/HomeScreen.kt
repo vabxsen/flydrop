@@ -38,7 +38,7 @@ import com.flydrop.app.ui.components.FlyDropLogo
 import com.flydrop.app.ui.components.FriendCard
 import com.flydrop.app.ui.components.ProfileCard
 import com.flydrop.app.ui.components.SectionHeader
-import com.flydrop.app.ui.components.WebCard
+
 import com.flydrop.app.ui.theme.FlyDrop
 import com.flydrop.app.ui.theme.FlyDropTheme
 
@@ -46,8 +46,8 @@ import com.flydrop.app.ui.theme.FlyDropTheme
  * Home.
  *
  * The defining feature is the two-tone construction: a pale aqua hero holding
- * the top bar, profile card and web card, with a full-bleed white sheet rising
- * over it from "Favourite Friends" down.
+ * the top bar, profile card and FlyDrop ID search, with a full-bleed white sheet
+ * rising over it from "Favourite Friends" down.
  *
  * The list itself is painted white so the sheet continues to the bottom of the
  * screen behind the floating navigation; only the hero item paints aqua.
@@ -63,6 +63,11 @@ fun HomeScreen(
     onToggleFavourite: (FlyUser) -> Unit,
     onRequestContactsPermission: () -> Unit,
     onRetryContacts: () -> Unit,
+    onSearchQueryChange: (String) -> Unit,
+    onSearch: () -> Unit,
+    onClearSearch: () -> Unit,
+    /** Opens the invite prompt for a phone contact. */
+    onContactClick: (FlyUser) -> Unit,
     modifier: Modifier = Modifier,
     /** The signed-in user's own profile photo, when they have set one. */
     avatar: ImageBitmap? = null,
@@ -97,7 +102,13 @@ fun HomeScreen(
                     onScan = onScan,
                 )
                 Spacer(Modifier.height(14.dp))
-                WebCard()
+                FlyIdSearchCard(
+                    state = state.search,
+                    onQueryChange = onSearchQueryChange,
+                    onSearch = onSearch,
+                    onClear = onClearSearch,
+                    onOpenResult = onOpenFriend,
+                )
                 Spacer(Modifier.height(17.dp))
             }
         }
@@ -157,6 +168,7 @@ fun HomeScreen(
                             contact = contact,
                             isFavourite = state.favouriteFriends.any { it.id == contact.id },
                             onToggleFavourite = { onToggleFavourite(contact) },
+                            onClick = { onContactClick(contact) },
                             modifier = Modifier.padding(horizontal = dimens.screenPadding),
                         )
                         Spacer(Modifier.height(dimens.cardGap))
@@ -279,6 +291,10 @@ private fun HomeScreenPreview() {
             onToggleFavourite = {},
             onRequestContactsPermission = {},
             onRetryContacts = {},
+            onSearchQueryChange = {},
+            onSearch = {},
+            onClearSearch = {},
+            onContactClick = {},
         )
     }
 }

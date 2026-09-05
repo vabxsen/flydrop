@@ -21,6 +21,11 @@ data class FlyUser(
      * future image loader has it.
      */
     val photoUrl: String? = null,
+    /**
+     * Set for phone contacts that have a number, so an invite can be addressed
+     * to them. Null for FlyDrop peers and for contacts stored without one.
+     */
+    val phoneNumber: String? = null,
 )
 
 enum class FileKind { Image, Archive, Pdf, Document }

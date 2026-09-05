@@ -3,6 +3,7 @@ package com.flydrop.app.data.profile
 import android.content.Context
 import androidx.compose.runtime.Immutable
 import com.flydrop.app.data.await
+import com.flydrop.app.data.model.FlyUser
 import com.google.firebase.FirebaseApp
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.DocumentSnapshot
@@ -26,6 +27,19 @@ data class FlyProfile(
 ) {
     val flyId: String get() = FlyIdRules.display(handle)
     val editable: Boolean get() = !handleChanged
+}
+
+/** Outcome of looking someone up by their FlyDrop ID. */
+@Immutable
+sealed interface FlyIdSearchResult {
+    data class Found(val user: FlyUser) : FlyIdSearchResult
+
+    /** The id is well formed, but nobody holds it. */
+    data object NotFound : FlyIdSearchResult
+
+    data class Invalid(val error: FlyIdError) : FlyIdSearchResult
+
+    data class Failure(val message: String) : FlyIdSearchResult
 }
 
 @Immutable
@@ -145,6 +159,47 @@ class ProfileRepository(context: Context) {
         } catch (e: Exception) {
             ClaimResult.Failure(e.friendlyMessage())
         }
+    }
+
+    /**
+     * Finds the account holding [requested], if any.
+     *
+     * Only the reservation document is read. It names its owner, which is
+     * everything needed to identify the holder, so this costs one read and
+     * never touches the other account's profile document.
+     *
+     * The reservation carries no display name - the app stores none - so a
+     * result is identified by the FlyDrop ID itself and the avatar derived from
+     * its owner's uid, the same way peers are drawn everywhere else.
+     */
+    suspend fun findByFlyId(requested: String): FlyIdSearchResult {
+        val handle = FlyIdRules.normalise(requested)
+        FlyIdRules.validate(handle)?.let { return FlyIdSearchResult.Invalid(it) }
+
+        val db = firestore
+            ?: return FlyIdSearchResult.Failure(
+                "Searching needs Firebase, which is not configured.",
+            )
+
+        return runCatching { db.handleDocument(handle).get().await() }
+            .fold(
+                onSuccess = { snapshot ->
+                    val uid = snapshot.takeIf { it.exists() }?.getString(FIELD_UID)
+                    if (uid.isNullOrBlank()) {
+                        FlyIdSearchResult.NotFound
+                    } else {
+                        FlyIdSearchResult.Found(
+                            FlyUser(
+                                id = uid,
+                                name = FlyIdRules.display(handle),
+                                flyId = FlyIdRules.display(handle),
+                                avatarSeed = uid.hashCode().ushr(1),
+                            ),
+                        )
+                    }
+                },
+                onFailure = { FlyIdSearchResult.Failure(it.friendlyMessage()) },
+            )
     }
 
     /**

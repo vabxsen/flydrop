@@ -35,6 +35,32 @@ private fun strokeIcon(
     )
 }.build()
 
+/**
+ * Solid counterpart to [strokeIcon]. The stroke is kept alongside the fill so a
+ * filled glyph covers the same silhouette as the outline it replaces, rather
+ * than sitting a stroke-width inside it.
+ */
+private fun filledIcon(
+    name: String,
+    strokeWidth: Float = 1.8f,
+    block: PathBuilder.() -> Unit,
+): ImageVector = ImageVector.Builder(
+    name = name,
+    defaultWidth = 24.dp,
+    defaultHeight = 24.dp,
+    viewportWidth = 24f,
+    viewportHeight = 24f,
+).apply {
+    path(
+        fill = SolidColor(Color.Black),
+        stroke = SolidColor(Color.Black),
+        strokeLineWidth = strokeWidth,
+        strokeLineCap = StrokeCap.Round,
+        strokeLineJoin = StrokeJoin.Round,
+        pathBuilder = block,
+    )
+}.build()
+
 object FlyDropIcons {
 
     val Settings: ImageVector by lazy {
@@ -332,6 +358,23 @@ object FlyDropIcons {
 
     val Star: ImageVector by lazy {
         strokeIcon("Star", strokeWidth = 1.8f) {
+            moveTo(12.0f, 3.2f)
+            lineTo(14.7f, 8.7f)
+            lineTo(20.8f, 9.6f)
+            lineTo(16.4f, 13.9f)
+            lineTo(17.4f, 20.0f)
+            lineTo(12.0f, 17.1f)
+            lineTo(6.6f, 20.0f)
+            lineTo(7.6f, 13.9f)
+            lineTo(3.2f, 9.6f)
+            lineTo(9.3f, 8.7f)
+            close()
+        }
+    }
+
+    /** Same outline as [Star], solid. Drawn over it when a contact is favourited. */
+    val StarFilled: ImageVector by lazy {
+        filledIcon("StarFilled") {
             moveTo(12.0f, 3.2f)
             lineTo(14.7f, 8.7f)
             lineTo(20.8f, 9.6f)

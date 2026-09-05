@@ -2,6 +2,7 @@ package com.flydrop.app.ui.nearby
 
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,22 +13,33 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.flydrop.app.data.MockData
+import com.flydrop.app.data.PickedFile
+import com.flydrop.app.data.formatFileSize
 import com.flydrop.app.data.model.FlyUser
 import com.flydrop.app.ui.components.DiscoverySwitch
+import com.flydrop.app.ui.components.FlyDropIcons
 import com.flydrop.app.ui.components.FlyDropLogo
 import com.flydrop.app.ui.components.NearbyFriendCard
 import com.flydrop.app.ui.components.RadarView
 import com.flydrop.app.ui.components.SectionHeader
+import com.flydrop.app.ui.components.SoftCard
 import com.flydrop.app.ui.theme.FlyDrop
 import com.flydrop.app.ui.theme.FlyDropTheme
 
@@ -44,6 +56,9 @@ fun NearbyScreen(
     onSelectUser: (String) -> Unit,
     onAddFriend: (FlyUser) -> Unit,
     modifier: Modifier = Modifier,
+    /** Files chosen with Send File, waiting for a recipient. */
+    pickedFiles: List<PickedFile> = emptyList(),
+    onClearPickedFiles: () -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
     val dimens = FlyDrop.dimens
@@ -66,6 +81,14 @@ fun NearbyScreen(
             DiscoverySwitch(
                 checked = state.discoverable,
                 onCheckedChange = onDiscoverableChange,
+            )
+        }
+
+        if (pickedFiles.isNotEmpty()) {
+            PickedFilesBanner(
+                files = pickedFiles,
+                onClear = onClearPickedFiles,
+                modifier = Modifier.padding(horizontal = dimens.screenPadding),
             )
         }
 
@@ -95,6 +118,89 @@ fun NearbyScreen(
             onAddFriend = onAddFriend,
             bottomPadding = contentPadding.calculateBottomPadding(),
         )
+    }
+}
+
+/**
+ * What Send File picked, waiting on a recipient.
+ *
+ * Nothing can actually be sent yet - there is no transport - so this says only
+ * what is true: the files are chosen, and a device has to be picked next.
+ */
+@Composable
+private fun PickedFilesBanner(
+    files: List<PickedFile>,
+    onClear: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val total = files.sumOf { it.sizeBytes ?: 0L }.takeIf { it > 0L }
+
+    SoftCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = FlyDrop.shapes.smallCard,
+        elevation = 3.dp,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(34.dp)
+                    .clip(FlyDrop.shapes.tile)
+                    .background(FlyDrop.colors.violetSoft, FlyDrop.shapes.tile),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = FlyDropIcons.Document,
+                    contentDescription = null,
+                    tint = FlyDrop.colors.violet,
+                    modifier = Modifier.size(17.dp),
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (files.size == 1) {
+                        files.first().name
+                    } else {
+                        "${files.size} files ready to send"
+                    },
+                    style = FlyDrop.type.cardTitle,
+                    color = FlyDrop.colors.textPrimary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    text = if (total != null) {
+                        "${formatFileSize(total)} · choose a device below"
+                    } else {
+                        "Choose a device below"
+                    },
+                    style = FlyDrop.type.metadata,
+                    color = FlyDrop.colors.textSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            Spacer(Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(FlyDrop.shapes.chip)
+                    .clickable(onClick = onClear)
+                    .semantics { role = Role.Button },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    text = "Clear",
+                    style = FlyDrop.type.metadata,
+                    color = FlyDrop.colors.violet,
+                )
+            }
+        }
     }
 }
 

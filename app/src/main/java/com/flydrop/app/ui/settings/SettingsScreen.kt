@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -321,6 +322,9 @@ private fun PermissionCard(
         modifier = modifier.fillMaxWidth(),
         shape = FlyDrop.shapes.smallCard,
         elevation = 3.dp,
+        // The whole row acts as the button too, so a tap that lands beside the
+        // pill still does what the user meant.
+        onClick = if (showAction) onClick else null,
     ) {
         Row(
             modifier = Modifier
@@ -369,7 +373,11 @@ private fun PermissionCard(
             if (showAction) {
                 Spacer(Modifier.width(10.dp))
                 Box(
+                    // 48dp is Android's minimum touch target. The pill used to
+                    // be 35x19dp, small enough that ordinary taps missed it and
+                    // the button read as doing nothing.
                     modifier = Modifier
+                        .defaultMinSize(minWidth = 72.dp, minHeight = 48.dp)
                         .clip(FlyDrop.shapes.button)
                         .background(FlyDrop.colors.violetSoft)
                         .clickable(onClick = onClick)

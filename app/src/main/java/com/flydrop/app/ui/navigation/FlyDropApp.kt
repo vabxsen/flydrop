@@ -24,9 +24,13 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.LocalActivity
@@ -42,6 +46,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.flydrop.app.BuildConfig
 import com.flydrop.app.data.MockData
+import com.flydrop.app.data.PickedFile
+import com.flydrop.app.data.describePickedFiles
 import com.flydrop.app.data.model.FlyUser
 import com.flydrop.app.data.model.TransferDirection
 import com.flydrop.app.ui.about.AboutInfo
@@ -56,15 +62,25 @@ import com.flydrop.app.ui.components.FlyDropLogo
 import com.flydrop.app.ui.components.NavTab
 import com.flydrop.app.ui.home.HomeScreen
 import com.flydrop.app.ui.home.HomeViewModel
+import com.flydrop.app.ui.home.InviteContactDialog
+import com.flydrop.app.ui.home.sendInvite
 import com.flydrop.app.ui.home.ContactsAccess
 import com.flydrop.app.ui.nearby.NearbyScreen
+import com.flydrop.app.ui.nearby.NearbyRadiosDialog
 import com.flydrop.app.ui.nearby.NearbyViewModel
+import com.flydrop.app.ui.nearby.bluetoothEnableIntent
+import com.flydrop.app.ui.nearby.needsBluetoothConnectPermission
+import com.flydrop.app.ui.nearby.openWifiControls
+import com.flydrop.app.ui.nearby.rememberRadioStatus
 import com.flydrop.app.ui.profile.ProfileScreen
 import com.flydrop.app.ui.profile.ProfileViewModel
 import com.flydrop.app.ui.settings.SettingsRoute
 import com.flydrop.app.ui.theme.FlyDrop
 import com.flydrop.app.ui.transfer.TransferScreen
 import com.flydrop.app.ui.transfer.TransferViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private object Routes {
     const val HOME = "home"
@@ -163,6 +179,10 @@ private fun FlyDropNavHost(
 ) {
     val navController = rememberNavController()
 
+    // Hoisted above the routes: Send File picks on Home, and the chosen files
+    // are shown on Nearby, where a recipient would be chosen.
+    var pickedFiles by remember { mutableStateOf<List<PickedFile>>(emptyList()) }
+
     // Hoisted above the routes because the chosen FlyDrop ID appears on Home as
     // well as on Profile, and both must show the same one the moment it changes.
     // Guest mode has no account to hang an id on, so it binds null.
@@ -236,6 +256,10 @@ private fun FlyDropNavHost(
             composable(Routes.HOME) {
                 val viewModel: HomeViewModel = viewModel()
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
+                val context = LocalContext.current
+                val scope = rememberCoroutineScope()
+                var invitee by remember { mutableStateOf<FlyUser?>(null) }
+
                 val contactsPermissionLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission(),
                     viewModel::onContactsPermissionResult,
@@ -246,10 +270,27 @@ private fun FlyDropNavHost(
                         contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
                     }
                 }
+
+                // The system document picker: it covers photos and files alike
+                // and grants read access per pick, so no storage permission is
+                // needed for the user to choose what to send.
+                val filePicker = rememberLauncherForActivityResult(
+                    ActivityResultContracts.OpenMultipleDocuments(),
+                ) { uris ->
+                    if (uris.isEmpty()) return@rememberLauncherForActivityResult
+                    scope.launch {
+                        // A ContentResolver query per file, so off the main thread.
+                        pickedFiles = withContext(Dispatchers.IO) {
+                            context.contentResolver.describePickedFiles(uris)
+                        }
+                        navigateToTab(Routes.NEARBY)
+                    }
+                }
+
                 HomeScreen(
                     // Fall back to the mock identity when running without Firebase.
                     state = if (identity != null) state.copy(currentUser = identity) else state,
-                    onSendFile = { navigateToTab(Routes.NEARBY) },
+                    onSendFile = { filePicker.launch(arrayOf("*/*")) },
                     onReceiveFile = { navigateToTab(Routes.NEARBY) },
                     onNotificationsClick = viewModel::clearNotifications,
                     onScan = { navigateToTab(Routes.NEARBY) },
@@ -259,21 +300,74 @@ private fun FlyDropNavHost(
                     onToggleFavourite = viewModel::toggleFavourite,
                     onRequestContactsPermission = viewModel::requestContactsPermission,
                     onRetryContacts = viewModel::retryContacts,
+                    onSearchQueryChange = viewModel::onSearchQueryChange,
+                    onSearch = viewModel::searchFlyId,
+                    onClearSearch = viewModel::clearSearch,
+                    onContactClick = { invitee = it },
                     avatar = flyIdState.avatar,
                     contentPadding = screenPadding,
                 )
+
+                invitee?.let { contact ->
+                    InviteContactDialog(
+                        contact = contact,
+                        onInvite = {
+                            invitee = null
+                            sendInvite(context, contact, BuildConfig.DOWNLOAD_URL)
+                        },
+                        onDismiss = { invitee = null },
+                    )
+                }
             }
 
             composable(Routes.NEARBY) {
                 val viewModel: NearbyViewModel = viewModel()
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
+                val context = LocalContext.current
+                val radioStatus = rememberRadioStatus()
+                var radiosDialogOpen by remember { mutableStateOf(false) }
+
+                // Android's own consent dialog does the enabling; the result is
+                // ignored because rememberRadioStatus re-reads on resume, which
+                // is also correct when the user enables it from the shade.
+                val bluetoothEnable = rememberLauncherForActivityResult(
+                    ActivityResultContracts.StartActivityForResult(),
+                ) {}
+                val bluetoothPermission = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission(),
+                ) { granted -> if (granted) bluetoothEnable.launch(bluetoothEnableIntent()) }
+
+                // Asked on arrival, and only when there is something to turn on.
+                LaunchedEffect(Unit) {
+                    if (!radioStatus.allOn) radiosDialogOpen = true
+                }
+
                 NearbyScreen(
                     state = state,
                     onDiscoverableChange = viewModel::setDiscoverable,
                     onSelectUser = viewModel::selectUser,
                     onAddFriend = viewModel::addFriend,
+                    pickedFiles = pickedFiles,
+                    onClearPickedFiles = { pickedFiles = emptyList() },
                     contentPadding = screenPadding,
                 )
+
+                if (radiosDialogOpen) {
+                    NearbyRadiosDialog(
+                        status = radioStatus,
+                        onEnableWifi = { openWifiControls(context) },
+                        onEnableBluetooth = {
+                            // From Android 12, asking to enable Bluetooth needs
+                            // BLUETOOTH_CONNECT first, or the request is refused.
+                            if (needsBluetoothConnectPermission(context)) {
+                                bluetoothPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
+                            } else {
+                                bluetoothEnable.launch(bluetoothEnableIntent())
+                            }
+                        },
+                        onDismiss = { radiosDialogOpen = false },
+                    )
+                }
             }
 
             composable(Routes.PROFILE) {

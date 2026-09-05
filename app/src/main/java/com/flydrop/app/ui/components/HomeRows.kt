@@ -1,5 +1,9 @@
 package com.flydrop.app.ui.components
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -16,9 +20,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -55,61 +63,6 @@ fun SectionHeader(
                     .clickable(onClick = onAction)
                     .padding(horizontal = 4.dp, vertical = 2.dp),
             )
-        }
-    }
-}
-
-/** The horizontal "Flydrop Web" promo strip below the profile card. */
-@Composable
-fun WebCard(
-    modifier: Modifier = Modifier,
-    onClick: (() -> Unit)? = null,
-) {
-    SoftCard(
-        modifier = modifier.fillMaxWidth(),
-        shape = FlyDrop.shapes.card,
-        onClick = onClick,
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(FlyDrop.dimens.webCardHeight)
-                .padding(horizontal = 15.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(FlyDrop.dimens.webCardIcon)
-                    .clip(FlyDrop.shapes.tile)
-                    .background(FlyDrop.colors.paleTile, FlyDrop.shapes.tile),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    imageVector = FlyDropIcons.CloudTransfer,
-                    contentDescription = null,
-                    tint = FlyDrop.colors.violet,
-                    modifier = Modifier.size(19.dp),
-                )
-            }
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Flydrop Web",
-                    style = FlyDrop.type.cardTitle,
-                    color = FlyDrop.colors.textPrimary,
-                )
-                Text(
-                    text = "Easiest way to transfer from PC, no boundary",
-                    style = FlyDrop.type.secondary,
-                    color = FlyDrop.colors.textSecondary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (onClick != null) {
-                Spacer(Modifier.width(8.dp))
-                Chevron()
-            }
         }
     }
 }
@@ -154,11 +107,13 @@ fun ContactItem(
     isFavourite: Boolean,
     onToggleFavourite: () -> Unit,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
     SoftCard(
         modifier = modifier.fillMaxWidth(),
         shape = FlyDrop.shapes.smallCard,
         elevation = 3.dp,
+        onClick = onClick,
     ) {
         Row(
             modifier = Modifier
@@ -183,23 +138,70 @@ fun ContactItem(
                     color = FlyDrop.colors.textSecondary,
                 )
             }
-            IconButton(onClick = onToggleFavourite) {
-                Icon(
-                    imageVector = FlyDropIcons.Star,
+            IconButton(
+                onClick = onToggleFavourite,
+                modifier = Modifier.semantics {
                     contentDescription = if (isFavourite) {
                         "Remove ${contact.name} from favourites"
                     } else {
                         "Add ${contact.name} to favourites"
-                    },
-                    tint = if (isFavourite) {
-                        FlyDrop.colors.violet
-                    } else {
-                        FlyDrop.colors.textTertiary
-                    },
-                    modifier = Modifier.size(22.dp),
-                )
+                    }
+                },
+            ) {
+                FavouriteStar(isFavourite = isFavourite)
             }
         }
+    }
+}
+
+/**
+ * The favourite star: a violet fill that springs in over the outline.
+ *
+ * The spring is deliberately underdamped, so the fill overshoots its size and
+ * settles back - a small celebration rather than a state flag flipping. Scale
+ * and alpha are clamped because an underdamped spring travels outside 0..1 at
+ * both ends, and a negative scale would mirror the glyph.
+ */
+@Composable
+private fun FavouriteStar(
+    isFavourite: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val fill by animateFloatAsState(
+        targetValue = if (isFavourite) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.42f, stiffness = 520f),
+        label = "favouriteStarFill",
+    )
+    val outlineTint by animateColorAsState(
+        targetValue = if (isFavourite) {
+            FlyDrop.colors.violet
+        } else {
+            FlyDrop.colors.textTertiary
+        },
+        animationSpec = tween(220),
+        label = "favouriteStarOutline",
+    )
+
+    Box(modifier = modifier, contentAlignment = Alignment.Center) {
+        Icon(
+            imageVector = FlyDropIcons.Star,
+            contentDescription = null,
+            tint = outlineTint,
+            modifier = Modifier.size(22.dp),
+        )
+        Icon(
+            imageVector = FlyDropIcons.StarFilled,
+            contentDescription = null,
+            tint = FlyDrop.colors.violet,
+            modifier = Modifier
+                .size(22.dp)
+                .graphicsLayer {
+                    val scale = fill.coerceAtLeast(0f)
+                    scaleX = scale
+                    scaleY = scale
+                    alpha = fill.coerceIn(0f, 1f)
+                },
+        )
     }
 }
 
@@ -221,7 +223,7 @@ private fun HomeRowsPreview() {
             modifier = Modifier.padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            WebCard()
+
             SectionHeader(title = "Favourite Friends")
             Text("No favourite friends yet")
             SectionHeader(title = "Contacts")

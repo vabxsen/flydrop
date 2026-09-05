@@ -27,7 +27,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,6 +53,7 @@ import com.flydrop.app.data.MockData
 import com.flydrop.app.data.model.FlyUser
 import com.flydrop.app.data.profile.FlyIdRules
 import com.flydrop.app.ui.components.Avatar
+import com.flydrop.app.ui.components.DialogTextButton
 import com.flydrop.app.ui.components.FlyDropIcons
 import com.flydrop.app.ui.components.SoftCard
 import com.flydrop.app.ui.theme.FlyDrop
@@ -86,6 +90,7 @@ fun ProfileScreen(
 ) {
     val colors = FlyDrop.colors
     val dimens = FlyDrop.dimens
+    var confirmSignOut by remember { mutableStateOf(false) }
 
     // The confirmation has been read by the time it has been on screen this
     // long, and leaving it up would make it read as part of the card stack.
@@ -192,9 +197,21 @@ fun ProfileScreen(
             Spacer(Modifier.height(dimens.sectionGap))
             AccountActionButton(
                 signedIn = signedIn,
-                onClick = onSignOut,
+                // Signing in is harmless and reversible; signing out drops the
+                // session and the FlyDrop ID with it, so only that one asks.
+                onClick = { if (signedIn) confirmSignOut = true else onSignOut() },
             )
         }
+    }
+
+    if (confirmSignOut) {
+        SignOutConfirmDialog(
+            onConfirm = {
+                confirmSignOut = false
+                onSignOut()
+            },
+            onDismiss = { confirmSignOut = false },
+        )
     }
 
     if (flyIdState.editorOpen) {
@@ -323,7 +340,7 @@ private fun AvatarChoiceDialog(
 
                 Spacer(Modifier.height(18.dp))
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                    DialogButton(
+                    DialogTextButton(
                         label = "Cancel",
                         enabled = true,
                         filled = false,
@@ -503,20 +520,55 @@ private fun FlyIdEditorDialog(
 
                 Spacer(Modifier.height(18.dp))
                 Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
-                    DialogButton(
+                    DialogTextButton(
                         label = "Cancel",
                         enabled = !state.saving,
                         filled = false,
                         onClick = onDismiss,
                     )
                     Spacer(Modifier.width(10.dp))
-                    DialogButton(
+                    DialogTextButton(
                         label = if (state.submissionError != null) "Retry" else "Save",
                         enabled = canSave,
                         filled = true,
                         loading = state.saving,
                         onClick = onConfirm,
                     )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Confirms a sign-out. Signing out is one tap from the bottom of Profile and
+ * ends the session, so it asks first rather than acting on a mis-tap.
+ */
+@Composable
+private fun SignOutConfirmDialog(
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss) {
+        SoftCard(shape = FlyDrop.shapes.largeCard, elevation = 8.dp) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "Sign out of FlyDrop?",
+                    style = FlyDrop.type.sectionTitle,
+                    color = FlyDrop.colors.textPrimary,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "Your FlyDrop ID stays yours. Sign back in with the " +
+                        "same account to pick it up again.",
+                    style = FlyDrop.type.secondary,
+                    color = FlyDrop.colors.textSecondary,
+                )
+                Spacer(Modifier.height(18.dp))
+                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                    DialogTextButton(label = "Cancel", enabled = true, filled = false, onClick = onDismiss)
+                    Spacer(Modifier.width(10.dp))
+                    DialogTextButton(label = "Sign out", enabled = true, filled = true, onClick = onConfirm)
                 }
             }
         }
@@ -581,47 +633,6 @@ private fun FlyIdField(
                     .focusRequester(focusRequester),
             )
         }
-    }
-}
-
-@Composable
-private fun DialogButton(
-    label: String,
-    enabled: Boolean,
-    filled: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    loading: Boolean = false,
-) {
-    val colors = FlyDrop.colors
-    val shape = FlyDrop.shapes.button
-    val background = if (filled) colors.violet else Color.Transparent
-    val content = if (filled) Color.White else colors.textSecondary
-
-    Row(
-        modifier = modifier
-            .clip(shape)
-            .background(
-                color = if (filled && !enabled) colors.violetSoft else background,
-                shape = shape,
-            )
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 20.dp, vertical = 11.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (loading) {
-            CircularProgressIndicator(
-                color = content,
-                strokeWidth = 2.dp,
-                modifier = Modifier.size(14.dp),
-            )
-            Spacer(Modifier.width(8.dp))
-        }
-        Text(
-            text = label,
-            style = FlyDrop.type.buttonLabel,
-            color = if (filled && !enabled) colors.violet else content,
-        )
     }
 }
 

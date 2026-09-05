@@ -58,7 +58,12 @@ class FlyDropNavigationTest {
         composeRule.onNodeWithContentDescription("Unread notifications", useUnmergedTree = true)
             .assertDoesNotExist()
 
-        composeRule.onNodeWithText("Send File").performClick()
+        // Send File opens the system document picker, which leaves the app and
+        // so cannot be followed from a Compose test. Its presence is asserted
+        // here; the picker and the resulting Nearby banner are covered by hand.
+        composeRule.onNodeWithText("Send File").assertIsDisplayed().assertHasClickAction()
+
+        navigateTo("Nearby")
         assertNearbyAndToggleDiscovery()
         navigateTo("Home")
         composeRule.onNodeWithText("Favourite Friends").assertIsDisplayed()

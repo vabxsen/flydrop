@@ -13,6 +13,8 @@ import androidx.lifecycle.viewModelScope
 import com.flydrop.app.data.MockData
 import com.flydrop.app.data.PhoneContactsRepository
 import com.flydrop.app.data.model.FlyUser
+import com.flydrop.app.data.profile.FlyIdSearchResult
+import com.flydrop.app.data.profile.ProfileRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,6 +31,19 @@ enum class ContactsAccess {
     Error,
 }
 
+/** The "Find by FlyDrop ID" card on Home. */
+@Immutable
+data class UserSearchState(
+    val query: String = "",
+    val searching: Boolean = false,
+    /** The account holding the searched id, once one has been found. */
+    val result: FlyUser? = null,
+    /** Why the last search produced no profile. Null while one is showing. */
+    val message: String? = null,
+) {
+    val canSearch: Boolean get() = query.isNotBlank() && !searching
+}
+
 @Immutable
 data class HomeUiState(
     val currentUser: FlyUser = MockData.currentUser,
@@ -36,11 +51,13 @@ data class HomeUiState(
     val contacts: List<FlyUser> = emptyList(),
     val contactsAccess: ContactsAccess = ContactsAccess.PermissionRequired,
     val hasNotifications: Boolean = true,
+    val search: UserSearchState = UserSearchState(),
 )
 
 class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     private val contactsRepository = PhoneContactsRepository(application.contentResolver)
+    private val profileRepository = ProfileRepository(application)
     private val preferences = application.getSharedPreferences(
         PREFERENCES_NAME,
         Context.MODE_PRIVATE,
@@ -67,6 +84,47 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearNotifications() {
         _uiState.update { it.copy(hasNotifications = false) }
+    }
+
+    fun onSearchQueryChange(value: String) {
+        // Editing clears the previous outcome: a result left under a changed
+        // query would look like the answer to what is now in the field.
+        _uiState.update {
+            it.copy(search = it.search.copy(query = value, result = null, message = null))
+        }
+    }
+
+    fun clearSearch() {
+        _uiState.update { it.copy(search = UserSearchState()) }
+    }
+
+    fun searchFlyId() {
+        val query = _uiState.value.search.query
+        if (query.isBlank() || _uiState.value.search.searching) return
+
+        _uiState.update {
+            it.copy(search = it.search.copy(searching = true, result = null, message = null))
+        }
+
+        viewModelScope.launch {
+            val outcome = profileRepository.findByFlyId(query)
+            _uiState.update { state ->
+                state.copy(
+                    search = state.search.copy(
+                        searching = false,
+                        result = (outcome as? FlyIdSearchResult.Found)?.user,
+                        message = when (outcome) {
+                            is FlyIdSearchResult.Found -> null
+                            is FlyIdSearchResult.NotFound ->
+                                "No one is using that FlyDrop ID."
+
+                            is FlyIdSearchResult.Invalid -> outcome.error.message
+                            is FlyIdSearchResult.Failure -> outcome.message
+                        },
+                    ),
+                )
+            }
+        }
     }
 
     fun markContactsPermissionRequestStarted() {

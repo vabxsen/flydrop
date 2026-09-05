@@ -55,6 +55,13 @@ android {
             "RELEASES_API_URL",
             "\"https://api.github.com/repos/vabxsen/flydrop/releases/latest\"",
         )
+        // Where an invited contact is sent to get the app. The releases page
+        // rather than the API, because a person opens this one in a browser.
+        buildConfigField(
+            "String",
+            "DOWNLOAD_URL",
+            "\"https://github.com/vabxsen/flydrop/releases/latest\"",
+        )
     }
 
     signingConfigs {
