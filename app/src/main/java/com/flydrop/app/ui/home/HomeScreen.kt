@@ -19,16 +19,19 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.flydrop.app.data.MockData
-import com.flydrop.app.data.model.ActivityEntry
 import com.flydrop.app.data.model.FlyUser
-import com.flydrop.app.ui.components.ActivityItem
+import com.flydrop.app.ui.components.ContactItem
 import com.flydrop.app.ui.components.FlyDropIcons
 import com.flydrop.app.ui.components.FlyDropLogo
 import com.flydrop.app.ui.components.FriendCard
@@ -53,8 +56,12 @@ fun HomeScreen(
     state: HomeUiState,
     onSendFile: () -> Unit,
     onReceiveFile: () -> Unit,
-    onOpenActivity: (ActivityEntry) -> Unit,
+    onNotificationsClick: () -> Unit,
+    onScan: () -> Unit,
     onOpenFriend: (FlyUser) -> Unit,
+    onToggleFavourite: (FlyUser) -> Unit,
+    onRequestContactsPermission: () -> Unit,
+    onRetryContacts: () -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
@@ -75,15 +82,18 @@ fun HomeScreen(
                     .padding(top = contentPadding.calculateTopPadding())
                     .padding(horizontal = dimens.screenPadding),
             ) {
-                HomeTopBar(hasNotifications = state.hasNotifications)
+                HomeTopBar(
+                    hasNotifications = state.hasNotifications,
+                    onNotificationsClick = onNotificationsClick,
+                )
                 ProfileCard(
                     user = state.currentUser,
                     onSendFile = onSendFile,
                     onReceiveFile = onReceiveFile,
-                    onScan = {},
+                    onScan = onScan,
                 )
                 Spacer(Modifier.height(14.dp))
-                WebCard(onClick = {})
+                WebCard()
                 Spacer(Modifier.height(17.dp))
             }
         }
@@ -106,37 +116,112 @@ fun HomeScreen(
                 modifier = Modifier.padding(horizontal = dimens.screenPadding),
             )
             Spacer(Modifier.height(12.dp))
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = dimens.screenPadding),
-                horizontalArrangement = Arrangement.spacedBy(dimens.cardGap),
-            ) {
-                items(state.favouriteFriends, key = { it.id }) { friend ->
-                    FriendCard(user = friend, onClick = { onOpenFriend(friend) })
+            if (state.favouriteFriends.isEmpty()) {
+                Text(
+                    text = "No favourite friends yet",
+                    style = FlyDrop.type.secondary,
+                    color = colors.textSecondary,
+                    modifier = Modifier.padding(horizontal = dimens.screenPadding),
+                )
+            } else {
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = dimens.screenPadding),
+                    horizontalArrangement = Arrangement.spacedBy(dimens.cardGap),
+                ) {
+                    items(state.favouriteFriends, key = { it.id }) { friend ->
+                        FriendCard(user = friend, onClick = { onOpenFriend(friend) })
+                    }
                 }
             }
             Spacer(Modifier.height(22.dp))
             SectionHeader(
-                title = "Latest Activities",
-                actionLabel = "See All",
-                onAction = {},
+                title = "Contacts",
                 modifier = Modifier.padding(horizontal = dimens.screenPadding),
             )
             Spacer(Modifier.height(13.dp))
         }
 
-        items(state.activities, key = { it.id }) { entry ->
-            ActivityItem(
-                entry = entry,
-                onClick = { onOpenActivity(entry) },
-                modifier = Modifier.padding(horizontal = dimens.screenPadding),
-            )
-            Spacer(Modifier.height(dimens.cardGap))
+        when (state.contactsAccess) {
+            ContactsAccess.Ready -> {
+                if (state.contacts.isEmpty()) {
+                    item(key = "noContacts") {
+                        ContactsMessage("No contacts found on this phone")
+                    }
+                } else {
+                    items(state.contacts, key = { it.id }) { contact ->
+                        ContactItem(
+                            contact = contact,
+                            isFavourite = state.favouriteFriends.any { it.id == contact.id },
+                            onToggleFavourite = { onToggleFavourite(contact) },
+                            modifier = Modifier.padding(horizontal = dimens.screenPadding),
+                        )
+                        Spacer(Modifier.height(dimens.cardGap))
+                    }
+                }
+            }
+
+            ContactsAccess.PermissionRequired,
+            ContactsAccess.Requesting,
+            -> item(key = "requestingContacts") {
+                ContactsMessage("Waiting for contacts permission…")
+            }
+
+            ContactsAccess.Loading -> item(key = "loadingContacts") {
+                ContactsMessage("Loading contacts…")
+            }
+
+            ContactsAccess.Denied -> item(key = "contactsDenied") {
+                ContactsMessage(
+                    message = "Allow contacts access to show names from this phone.",
+                    actionLabel = "Allow contacts",
+                    onAction = onRequestContactsPermission,
+                )
+            }
+
+            ContactsAccess.Error -> item(key = "contactsError") {
+                ContactsMessage(
+                    message = "Contacts couldn't be loaded.",
+                    actionLabel = "Try again",
+                    onAction = onRetryContacts,
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun HomeTopBar(hasNotifications: Boolean, modifier: Modifier = Modifier) {
+private fun ContactsMessage(
+    message: String,
+    modifier: Modifier = Modifier,
+    actionLabel: String? = null,
+    onAction: (() -> Unit)? = null,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = FlyDrop.dimens.screenPadding, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = message,
+            style = FlyDrop.type.secondary,
+            color = FlyDrop.colors.textSecondary,
+            modifier = Modifier.weight(1f),
+        )
+        if (actionLabel != null && onAction != null) {
+            TextButton(onClick = onAction) {
+                Text(actionLabel)
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeTopBar(
+    hasNotifications: Boolean,
+    onNotificationsClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -148,7 +233,7 @@ private fun HomeTopBar(hasNotifications: Boolean, modifier: Modifier = Modifier)
             modifier = Modifier
                 .size(36.dp)
                 .clip(CircleShape)
-                .clickable {},
+                .clickable(onClick = onNotificationsClick),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
@@ -164,7 +249,8 @@ private fun HomeTopBar(hasNotifications: Boolean, modifier: Modifier = Modifier)
                         .offset(x = (-2).dp, y = 5.dp)
                         .size(6.dp)
                         .clip(CircleShape)
-                        .background(FlyDrop.colors.logoPlane, CircleShape),
+                        .background(FlyDrop.colors.logoPlane, CircleShape)
+                        .semantics { contentDescription = "Unread notifications" },
                 )
             }
         }
@@ -178,13 +264,17 @@ private fun HomeScreenPreview() {
         HomeScreen(
             state = HomeUiState(
                 currentUser = MockData.currentUser,
-                favouriteFriends = MockData.favouriteFriends,
-                activities = MockData.activities,
+                contacts = MockData.nearbyFriends,
+                contactsAccess = ContactsAccess.Ready,
             ),
             onSendFile = {},
             onReceiveFile = {},
-            onOpenActivity = {},
+            onNotificationsClick = {},
+            onScan = {},
             onOpenFriend = {},
+            onToggleFavourite = {},
+            onRequestContactsPermission = {},
+            onRetryContacts = {},
         )
     }
 }

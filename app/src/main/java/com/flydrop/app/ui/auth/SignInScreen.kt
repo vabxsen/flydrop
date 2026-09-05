@@ -55,7 +55,7 @@ import com.flydrop.app.ui.theme.FlyDropTheme
 fun SignInScreen(
     state: AuthUiState,
     onSignIn: () -> Unit,
-    onContinueWithoutFirebase: () -> Unit,
+    onContinueAsGuest: () -> Unit,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
@@ -136,8 +136,11 @@ fun SignInScreen(
                 Spacer(Modifier.height(16.dp))
                 SetupNotice(
                     reason = state.unavailableReason,
-                    onContinueWithoutFirebase = onContinueWithoutFirebase,
+                    onContinueAsGuest = onContinueAsGuest,
                 )
+            } else {
+                Spacer(Modifier.height(12.dp))
+                GuestModeButton(onClick = onContinueAsGuest)
             }
         }
     }
@@ -252,7 +255,7 @@ private fun GoogleSignInButton(
 @Composable
 private fun SetupNotice(
     reason: AuthUnavailableReason,
-    onContinueWithoutFirebase: () -> Unit,
+    onContinueAsGuest: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val message = when (reason) {
@@ -285,16 +288,21 @@ private fun SetupNotice(
             )
         }
         Spacer(Modifier.height(12.dp))
-        Text(
-            text = "Continue without signing in",
-            style = FlyDrop.type.buttonLabel,
-            color = FlyDrop.colors.violet,
-            modifier = Modifier
-                .clip(FlyDrop.shapes.chip)
-                .clickable(onClick = onContinueWithoutFirebase)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-        )
+        GuestModeButton(onClick = onContinueAsGuest)
     }
+}
+
+@Composable
+private fun GuestModeButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Text(
+        text = "Continue as guest",
+        style = FlyDrop.type.buttonLabel,
+        color = FlyDrop.colors.violet,
+        modifier = modifier
+            .clip(FlyDrop.shapes.chip)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+    )
 }
 
 @Preview(showBackground = true, widthDp = 380, heightDp = 820)
@@ -304,7 +312,7 @@ private fun SignInScreenPreview() {
         SignInScreen(
             state = AuthUiState(status = AuthStatus.SignedOut),
             onSignIn = {},
-            onContinueWithoutFirebase = {},
+            onContinueAsGuest = {},
         )
     }
 }
@@ -319,7 +327,7 @@ private fun SignInScreenNotConfiguredPreview() {
                 unavailableReason = AuthUnavailableReason.FirebaseNotConfigured,
             ),
             onSignIn = {},
-            onContinueWithoutFirebase = {},
+            onContinueAsGuest = {},
         )
     }
 }

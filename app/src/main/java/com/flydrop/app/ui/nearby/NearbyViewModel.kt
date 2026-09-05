@@ -47,6 +47,17 @@ class NearbyViewModel : ViewModel() {
         _uiState.update { it.copy(selectedUserId = userId) }
     }
 
+    fun addFriend(user: FlyUser) {
+        _uiState.update { state ->
+            state.copy(
+                nearbyFriends = state.nearbyFriends.map { nearbyUser ->
+                    if (nearbyUser.id == user.id) nearbyUser.copy(isFriend = true) else nearbyUser
+                },
+                selectedUserId = user.id,
+            )
+        }
+    }
+
     private fun startDiscovery() {
         discoveryJob?.cancel()
         discoveryJob = viewModelScope.launch {

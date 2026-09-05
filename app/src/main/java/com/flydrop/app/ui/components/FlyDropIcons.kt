@@ -188,6 +188,22 @@ object FlyDropIcons {
         }
     }
 
+    val Star: ImageVector by lazy {
+        strokeIcon("Star", strokeWidth = 1.8f) {
+            moveTo(12.0f, 3.2f)
+            lineTo(14.7f, 8.7f)
+            lineTo(20.8f, 9.6f)
+            lineTo(16.4f, 13.9f)
+            lineTo(17.4f, 20.0f)
+            lineTo(12.0f, 17.1f)
+            lineTo(6.6f, 20.0f)
+            lineTo(7.6f, 13.9f)
+            lineTo(3.2f, 9.6f)
+            lineTo(9.3f, 8.7f)
+            close()
+        }
+    }
+
     val ArrowDown: ImageVector by lazy {
         strokeIcon("ArrowDown", strokeWidth = 2.2f) {
             moveTo(12.0f, 5.6f); verticalLineTo(18.4f)

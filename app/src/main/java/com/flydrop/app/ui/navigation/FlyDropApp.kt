@@ -1,5 +1,9 @@
 package com.flydrop.app.ui.navigation
 
+import android.Manifest
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -16,6 +20,7 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -27,12 +32,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.flydrop.app.data.MockData
 import com.flydrop.app.data.model.FlyUser
+import com.flydrop.app.data.model.TransferDirection
 import com.flydrop.app.ui.auth.AuthStatus
 import com.flydrop.app.ui.auth.AuthViewModel
 import com.flydrop.app.ui.auth.SignInScreen
@@ -42,6 +50,7 @@ import com.flydrop.app.ui.components.FlyDropLogo
 import com.flydrop.app.ui.components.NavTab
 import com.flydrop.app.ui.home.HomeScreen
 import com.flydrop.app.ui.home.HomeViewModel
+import com.flydrop.app.ui.home.ContactsAccess
 import com.flydrop.app.ui.nearby.NearbyScreen
 import com.flydrop.app.ui.nearby.NearbyViewModel
 import com.flydrop.app.ui.profile.ProfileScreen
@@ -53,7 +62,10 @@ private object Routes {
     const val HOME = "home"
     const val NEARBY = "nearby"
     const val PROFILE = "profile"
-    const val TRANSFER = "transfer"
+    const val TRANSFER = "transfer/{peerId}/{peerName}/{direction}"
+
+    fun transfer(peer: FlyUser, direction: TransferDirection): String =
+        "transfer/${Uri.encode(peer.id)}/${Uri.encode(peer.name)}/${direction.name}"
 }
 
 private val tabRoutes = listOf(Routes.HOME, Routes.NEARBY, Routes.PROFILE)
@@ -94,7 +106,7 @@ fun FlyDropApp(modifier: Modifier = Modifier) {
             Gate.SignIn -> SignInScreen(
                 state = authState,
                 onSignIn = { activity?.let(authViewModel::signInWithGoogle) },
-                onContinueWithoutFirebase = authViewModel::continueWithoutFirebase,
+                onContinueAsGuest = authViewModel::continueAsGuest,
                 contentPadding = edgePadding,
             )
 
@@ -144,6 +156,16 @@ private fun FlyDropNavHost(
         ?.firstOrNull { it.route in tabRoutes }?.route
     val showNav = currentRoute != null
 
+    fun navigateToTab(route: String) {
+        navController.navigate(route) {
+            popUpTo(navController.graph.findStartDestination().id) {
+                saveState = true
+            }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
     val dimens = FlyDrop.dimens
 
     // Room for the floating bar so list content can scroll clear of it.
@@ -178,13 +200,29 @@ private fun FlyDropNavHost(
             composable(Routes.HOME) {
                 val viewModel: HomeViewModel = viewModel()
                 val state by viewModel.uiState.collectAsStateWithLifecycle()
+                val contactsPermissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission(),
+                    viewModel::onContactsPermissionResult,
+                )
+                LaunchedEffect(state.contactsAccess) {
+                    if (state.contactsAccess == ContactsAccess.PermissionRequired) {
+                        viewModel.markContactsPermissionRequestStarted()
+                        contactsPermissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+                    }
+                }
                 HomeScreen(
                     // Fall back to the mock identity when running without Firebase.
                     state = if (signedInUser != null) state.copy(currentUser = signedInUser) else state,
-                    onSendFile = { navController.navigate(Routes.NEARBY) { launchSingleTop = true } },
-                    onReceiveFile = { navController.navigate(Routes.NEARBY) { launchSingleTop = true } },
-                    onOpenActivity = { navController.navigate(Routes.TRANSFER) },
-                    onOpenFriend = { navController.navigate(Routes.TRANSFER) },
+                    onSendFile = { navigateToTab(Routes.NEARBY) },
+                    onReceiveFile = { navigateToTab(Routes.NEARBY) },
+                    onNotificationsClick = viewModel::clearNotifications,
+                    onScan = { navigateToTab(Routes.NEARBY) },
+                    onOpenFriend = { friend ->
+                        navController.navigate(Routes.transfer(friend, TransferDirection.Outgoing))
+                    },
+                    onToggleFavourite = viewModel::toggleFavourite,
+                    onRequestContactsPermission = viewModel::requestContactsPermission,
+                    onRetryContacts = viewModel::retryContacts,
                     contentPadding = screenPadding,
                 )
             }
@@ -196,7 +234,7 @@ private fun FlyDropNavHost(
                     state = state,
                     onDiscoverableChange = viewModel::setDiscoverable,
                     onSelectUser = viewModel::selectUser,
-                    onAddFriend = {},
+                    onAddFriend = viewModel::addFriend,
                     contentPadding = screenPadding,
                 )
             }
@@ -212,6 +250,11 @@ private fun FlyDropNavHost(
 
             composable(
                 route = Routes.TRANSFER,
+                arguments = listOf(
+                    navArgument("peerId") { type = NavType.StringType },
+                    navArgument("peerName") { type = NavType.StringType },
+                    navArgument("direction") { type = NavType.StringType },
+                ),
                 enterTransition = { slideInVertically(tween(300)) { it / 6 } + fadeIn(tween(300)) },
                 popExitTransition = { slideOutVertically(tween(260)) { it / 6 } + fadeOut(tween(260)) },
             ) {
@@ -232,15 +275,7 @@ private fun FlyDropNavHost(
             FloatingBottomNavigation(
                 tabs = tabs,
                 selectedIndex = tabRoutes.indexOf(currentRoute).coerceAtLeast(0),
-                onSelect = { index ->
-                    navController.navigate(tabRoutes[index]) {
-                        popUpTo(navController.graph.findStartDestination().id) {
-                            saveState = true
-                        }
-                        launchSingleTop = true
-                        restoreState = true
-                    }
-                },
+                onSelect = { index -> navigateToTab(tabRoutes[index]) },
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .padding(

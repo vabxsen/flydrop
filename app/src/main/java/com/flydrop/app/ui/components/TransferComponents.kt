@@ -44,6 +44,7 @@ import com.flydrop.app.data.model.TransferDirection
 import com.flydrop.app.data.model.TransferFile
 import com.flydrop.app.ui.theme.FlyDrop
 import com.flydrop.app.ui.theme.FlyDropTheme
+import java.util.Locale
 
 /**
  * The large circular transfer visualisation: a faint full ring, a teal progress
@@ -283,7 +284,7 @@ private fun TransferFile.sizeLabel(): String {
 
 private fun formatBytes(bytes: Long): String {
     val mb = bytes / 1_048_576.0
-    return if (mb >= 100) "${mb.toInt()} MB" else String.format("%.1f MB", mb)
+    return if (mb >= 100) "${mb.toInt()} MB" else String.format(Locale.ROOT, "%.1f MB", mb)
 }
 
 /** Small violet ring showing per-file progress. */

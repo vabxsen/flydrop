@@ -1,6 +1,5 @@
 package com.flydrop.app.data
 
-import com.flydrop.app.data.model.ActivityEntry
 import com.flydrop.app.data.model.FileKind
 import com.flydrop.app.data.model.FlyUser
 import com.flydrop.app.data.model.RadarDevice
@@ -29,12 +28,6 @@ object MockData {
     val rudi = FlyUser("rudi", "Rudi Hartono", "fly#901233", avatarSeed = 7)
 
     val favouriteFriends = listOf(ashley, david, greyhold, dennis)
-
-    val activities = listOf(
-        ActivityEntry("a1", ashley, TransferDirection.Incoming, fileCount = 12, relativeTime = "2 min ago"),
-        ActivityEntry("a2", greyhold, TransferDirection.Outgoing, fileCount = 3, relativeTime = "1 hour ago"),
-        ActivityEntry("a3", david, TransferDirection.Incoming, fileCount = 8, relativeTime = "Yesterday"),
-    )
 
     /** Angles/radii chosen to reproduce the scatter in the reference radar. */
     val radarDevices = listOf(

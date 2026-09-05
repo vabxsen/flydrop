@@ -11,7 +11,7 @@ radar, the transfer arc, the switch, the cards and the icon set are all bespoke.
 
 | Screen | What it contains |
 | --- | --- |
-| **Home** | Two-tone layout: a pale aqua hero (profile card, split Send/Receive actions, Flydrop Web strip) with a full-bleed white sheet rising over it carrying Favourite Friends and Latest Activities. |
+| **Home** | Two-tone layout: a pale aqua hero (profile card, split Send/Receive actions, Flydrop Web strip) with a full-bleed white sheet rising over it carrying user-selected Favourite Friends and the phone's Contacts. |
 | **Nearby** | Discovery radar drawn on the background — concentric rings, a breathing centre bloom, a slow scanning pulse and devices placed by polar coordinates — above a white Nearby Friends panel. |
 | **File Transfer** | Animated circular progress with both participants, a three-column stats strip, and per-file rows with their own progress rings. |
 | **Sign in / Profile** | Not in the reference; built from the same vocabulary. Google sign-in, and the account with a way back out of it. |
@@ -46,7 +46,7 @@ Swap the body of that one composable for an image loader to use real pictures.
 
 ## Stack
 
-Kotlin 2.4 · AGP 8.13 · Compose BOM 2026.01 · Material 3 · Navigation Compose ·
+Kotlin 2.3 · AGP 8.13 · Compose BOM 2026.01 · Material 3 · Navigation Compose ·
 ViewModel + StateFlow · Firebase Auth + Credential Manager · minSdk 26 · compileSdk 36
 
 Poppins is bundled under the SIL Open Font License; see `licenses/`.
@@ -56,6 +56,20 @@ Poppins is bundled under the SIL Open Font License; see `licenses/`.
 ```bash
 ./gradlew :app:assembleDebug
 ```
+
+## Testing
+
+Run the local model tests and the Android UI flow on a connected emulator:
+
+```bash
+./gradlew :app:testDebugUnitTest
+./gradlew :app:connectedDebugAndroidTest
+```
+
+The UI test covers guest entry, contacts permission, the initially empty favourites
+state, notifications, Send, Receive, scan, discovery, adding a nearby friend,
+bottom navigation and profile/account actions. Unit tests cover favourite selection
+and transfer progress behavior.
 
 `local.properties` is not committed — point `sdk.dir` at your Android SDK, or set
 `ANDROID_HOME`.
@@ -88,9 +102,17 @@ first for a one-tap sheet, falling back to the full picker. It needs Google Play
 Services **and a Google account on the device**, so an emulator must use a
 `google_apis_playstore` system image; a plain `google_apis` image cannot sign in.
 
+## Contacts
+
+Home requests Android's `READ_CONTACTS` permission and reads only contact IDs and
+display names. Phone numbers are not queried. Contacts can be added to or removed
+from Favourite Friends with the star action; the chosen IDs are stored locally in
+app preferences and the section is empty until the user chooses someone.
+
 ## Status
 
-The three reference screens, sign-in and profile are implemented against mock
-data (`data/MockData.kt`). Actual peer-to-peer transfer — Nearby Connections or
+The three reference screens, sign-in and profile are implemented; nearby devices
+and transfers still use mock data (`data/MockData.kt`), while Home contacts come
+from Android's contacts provider. Actual peer-to-peer transfer — Nearby Connections or
 Wi-Fi Direct — is not wired up; the models and ViewModels are shaped so it can be
 added without reworking the UI.

@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
@@ -31,6 +32,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -74,14 +77,17 @@ fun DiscoverySwitch(
             .size(width = dimens.toggleWidth, height = dimens.toggleHeight)
             .clip(CircleShape)
             .background(trackColor, CircleShape)
-            .clickable(
+            .semantics { contentDescription = "Device discovery" }
+            .toggleable(
+                value = checked,
                 interactionSource = remember { MutableInteractionSource() },
                 indication = ripple(bounded = false, radius = dimens.toggleWidth / 2),
                 role = Role.Switch,
-            ) {
+                onValueChange = { newValue ->
                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                onCheckedChange(!checked)
-            },
+                    onCheckedChange(newValue)
+                },
+            ),
         contentAlignment = Alignment.CenterStart,
     ) {
         Box(
@@ -142,7 +148,11 @@ fun NearbyFriendCard(
             if (user.isFriend) {
                 FriendStateChip(modifier = Modifier.fillMaxWidth())
             } else {
-                AddFriendButton(onClick = onAction, modifier = Modifier.fillMaxWidth())
+                AddFriendButton(
+                    userName = user.name,
+                    onClick = onAction,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }
@@ -167,13 +177,18 @@ private fun FriendStateChip(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun AddFriendButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun AddFriendButton(
+    userName: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val shape = FlyDrop.shapes.chip
     Row(
         modifier = modifier
             .height(FlyDrop.dimens.nearbyActionHeight)
             .clip(shape)
             .background(FlyDrop.colors.violet, shape)
+            .semantics { contentDescription = "Add $userName as friend" }
             .clickable(onClick = onClick),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically,

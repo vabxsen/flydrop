@@ -101,10 +101,11 @@ fun ProfileScreen(
                 value = if (signedIn) "Signed in with Google" else "Not signed in",
             )
 
-            if (signedIn) {
-                Spacer(Modifier.height(dimens.sectionGap))
-                SignOutButton(onClick = onSignOut)
-            }
+            Spacer(Modifier.height(dimens.sectionGap))
+            AccountActionButton(
+                signedIn = signedIn,
+                onClick = onSignOut,
+            )
         }
     }
 }
@@ -137,7 +138,11 @@ private fun InfoCard(label: String, value: String, modifier: Modifier = Modifier
 }
 
 @Composable
-private fun SignOutButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun AccountActionButton(
+    signedIn: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val shape = FlyDrop.shapes.button
     Row(
         modifier = modifier
@@ -157,7 +162,7 @@ private fun SignOutButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
         )
         Spacer(Modifier.width(10.dp))
         Text(
-            text = "Sign out",
+            text = if (signedIn) "Sign out" else "Sign in",
             style = FlyDrop.type.buttonLabel,
             color = FlyDrop.colors.violet,
         )

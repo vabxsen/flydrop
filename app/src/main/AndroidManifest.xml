@@ -3,6 +3,8 @@
 
     <!-- Firebase Authentication needs network access. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Used only to show the device's contact names on the Home screen. -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
 
     <application
         android:allowBackup="true"

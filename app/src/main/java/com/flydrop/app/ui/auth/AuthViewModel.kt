@@ -34,8 +34,8 @@ data class AuthUiState(
     val unavailableReason: AuthUnavailableReason? = null,
     /**
      * Lets the three reference screens be opened without Firebase, so the UI
-     * stays reviewable on a machine with no Firebase project. Only offered
-     * while sign-in is genuinely unavailable.
+     * stays usable when the user prefers guest mode or Google sign-in is not
+     * available on the current device.
      */
     val bypassedSetup: Boolean = false,
 )
@@ -93,16 +93,18 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun signOut() {
+        // Leave the app shell immediately. Credential Manager cleanup can take
+        // a moment and should not make the account action feel unresponsive.
+        _uiState.update {
+            it.copy(status = AuthStatus.SignedOut, bypassedSetup = false, errorMessage = null)
+        }
         viewModelScope.launch {
             repository.signOut()
-            _uiState.update {
-                it.copy(status = AuthStatus.SignedOut, bypassedSetup = false, errorMessage = null)
-            }
         }
     }
 
-    /** Opens the app without an account while Firebase is not yet configured. */
-    fun continueWithoutFirebase() {
+    /** Opens the app locally without creating a Firebase session. */
+    fun continueAsGuest() {
         _uiState.update { it.copy(bypassedSetup = true, errorMessage = null) }
     }
 
