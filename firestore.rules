@@ -1,0 +1,70 @@
+rules_version = '2';
+
+// Authoritative half of the FlyDrop ID rules. ProfileRepository cooperates with
+// what is written here, but a modified client can skip that class entirely, so
+// the two invariants have to hold on the server:
+//
+//   1. An id belongs to exactly one account.
+//   2. An account may choose its own id exactly once.
+//
+// Deploy with:  firebase deploy --only firestore:rules
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Reservation documents. The document id IS the handle, which is what makes
+    // uniqueness structural: two accounts cannot hold one id because they
+    // cannot both create the same document.
+    match /flyIds/{handle} {
+      // Readable by any signed-in client so it can tell "taken" from
+      // "available" before spending the one change on an id.
+      allow read: if request.auth != null;
+
+      // Create only, and only naming yourself as the owner. Nothing may ever
+      // update or delete a reservation: an id that has pointed at someone must
+      // never start pointing at someone else, so spent ids are retired rather
+      // than freed. Shape is checked here, once, because every handle in the
+      // system has to pass through this rule to exist at all.
+      allow create: if request.auth != null
+                    && request.resource.data.uid == request.auth.uid
+                    && handle.size() >= 3
+                    && handle.size() <= 20
+                    && handle.matches('^[a-z0-9](?:[a-z0-9._]*[a-z0-9])?$')
+                    && !handle.matches('.*[._]{2}.*');
+      allow update, delete: if false;
+    }
+
+    match /users/{uid} {
+      allow read: if request.auth != null;
+
+      // The account's own document. `handle` must be one it has actually
+      // reserved, so a profile cannot point itself at a stranger's id.
+      allow create: if isOwner(uid)
+                    && request.resource.data.handleChanged is bool
+                    && ownsHandle(request.resource.data.handle);
+
+      // The one-change rule. handleChanged only ever moves false -> true, so
+      // once it is true no further write to this document is accepted at all -
+      // which is also why delete is closed: deleting would reset the count.
+      allow update: if isOwner(uid)
+                    && resource.data.handleChanged == false
+                    && request.resource.data.handleChanged == true
+                    && ownsHandle(request.resource.data.handle);
+
+      allow delete: if false;
+    }
+
+    function isOwner(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // `getAfter`, not `get`: the reservation and the profile are written in one
+    // transaction, and `get` would still see the database as it was before it,
+    // so the reservation this write depends on would look absent.
+    function ownsHandle(handle) {
+      return handle is string
+             && existsAfter(/databases/$(database)/documents/flyIds/$(handle))
+             && getAfter(/databases/$(database)/documents/flyIds/$(handle)).data.uid
+                == request.auth.uid;
+    }
+  }
+}

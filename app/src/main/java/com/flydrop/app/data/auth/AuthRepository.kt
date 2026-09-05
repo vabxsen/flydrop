@@ -11,7 +11,9 @@ import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.NoCredentialException
+import com.flydrop.app.data.await
 import com.flydrop.app.data.model.FlyUser
+import com.flydrop.app.data.profile.FlyIdRules
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.FirebaseApp
@@ -21,9 +23,6 @@ import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.suspendCancellableCoroutine
-import kotlin.coroutines.resume
-import kotlin.coroutines.resumeWithException
 
 /** Why sign-in cannot run, when it cannot. */
 enum class AuthUnavailableReason {
@@ -193,20 +192,9 @@ private fun FirebaseUser.toFlyUser(): FlyUser = FlyUser(
     name = displayName?.takeIf { it.isNotBlank() }
         ?: email?.substringBefore('@')
         ?: "FlyDrop User",
-    flyId = "fly#" + uid.takeLast(6).uppercase(),
+    flyId = FlyIdRules.display(FlyIdRules.defaultHandle(uid)),
     avatarSeed = uid.hashCode(),
     isFriend = false,
     email = email,
     photoUrl = photoUrl?.toString(),
 )
-
-/**
- * Minimal Task-to-coroutine bridge, so the project does not need
- * kotlinx-coroutines-play-services for the single call that awaits a Task.
- */
-private suspend fun <T> com.google.android.gms.tasks.Task<T>.await(): T =
-    suspendCancellableCoroutine { continuation ->
-        addOnSuccessListener { continuation.resume(it) }
-        addOnFailureListener { continuation.resumeWithException(it) }
-        addOnCanceledListener { continuation.cancel() }
-    }

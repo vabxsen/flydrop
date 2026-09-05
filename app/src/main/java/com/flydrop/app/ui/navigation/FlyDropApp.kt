@@ -54,6 +54,7 @@ import com.flydrop.app.ui.home.ContactsAccess
 import com.flydrop.app.ui.nearby.NearbyScreen
 import com.flydrop.app.ui.nearby.NearbyViewModel
 import com.flydrop.app.ui.profile.ProfileScreen
+import com.flydrop.app.ui.profile.ProfileViewModel
 import com.flydrop.app.ui.theme.FlyDrop
 import com.flydrop.app.ui.transfer.TransferScreen
 import com.flydrop.app.ui.transfer.TransferViewModel
@@ -151,6 +152,17 @@ private fun FlyDropNavHost(
     modifier: Modifier = Modifier,
 ) {
     val navController = rememberNavController()
+
+    // Hoisted above the routes because the chosen FlyDrop ID appears on Home as
+    // well as on Profile, and both must show the same one the moment it changes.
+    // Guest mode has no account to hang an id on, so it binds null.
+    val profileViewModel: ProfileViewModel = viewModel()
+    val flyIdState by profileViewModel.uiState.collectAsStateWithLifecycle()
+    LaunchedEffect(signedInUser?.id) { profileViewModel.bind(signedInUser?.id) }
+    val identity = signedInUser?.let { user ->
+        flyIdState.flyId?.let { user.copy(flyId = it) } ?: user
+    }
+
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.hierarchy
         ?.firstOrNull { it.route in tabRoutes }?.route
@@ -212,7 +224,7 @@ private fun FlyDropNavHost(
                 }
                 HomeScreen(
                     // Fall back to the mock identity when running without Firebase.
-                    state = if (signedInUser != null) state.copy(currentUser = signedInUser) else state,
+                    state = if (identity != null) state.copy(currentUser = identity) else state,
                     onSendFile = { navigateToTab(Routes.NEARBY) },
                     onReceiveFile = { navigateToTab(Routes.NEARBY) },
                     onNotificationsClick = viewModel::clearNotifications,
@@ -241,8 +253,14 @@ private fun FlyDropNavHost(
 
             composable(Routes.PROFILE) {
                 ProfileScreen(
-                    user = signedInUser ?: MockData.currentUser,
+                    user = identity ?: MockData.currentUser,
                     signedIn = signedInUser != null,
+                    flyIdState = flyIdState,
+                    onEditFlyId = profileViewModel::openEditor,
+                    onFlyIdInputChange = profileViewModel::onInputChange,
+                    onConfirmFlyId = profileViewModel::confirmEdit,
+                    onDismissFlyIdEditor = profileViewModel::dismissEditor,
+                    onDismissFlyIdMessage = profileViewModel::dismissMessage,
                     onSignOut = onSignOut,
                     contentPadding = screenPadding,
                 )

@@ -14,7 +14,7 @@ radar, the transfer arc, the switch, the cards and the icon set are all bespoke.
 | **Home** | Two-tone layout: a pale aqua hero (profile card, split Send/Receive actions, Flydrop Web strip) with a full-bleed white sheet rising over it carrying user-selected Favourite Friends and the phone's Contacts. |
 | **Nearby** | Discovery radar drawn on the background — concentric rings, a breathing centre bloom, a slow scanning pulse and devices placed by polar coordinates — above a white Nearby Friends panel. |
 | **File Transfer** | Animated circular progress with both participants, a three-column stats strip, and per-file rows with their own progress rings. |
-| **Sign in / Profile** | Not in the reference; built from the same vocabulary. Google sign-in, and the account with a way back out of it. |
+| **Sign in / Profile** | Not in the reference; built from the same vocabulary. Google sign-in, the account with its editable FlyDrop ID, and a way back out of it. |
 
 ## Design tokens
 
@@ -47,7 +47,7 @@ Swap the body of that one composable for an image loader to use real pictures.
 ## Stack
 
 Kotlin 2.3 · AGP 8.13 · Compose BOM 2026.01 · Material 3 · Navigation Compose ·
-ViewModel + StateFlow · Firebase Auth + Credential Manager · minSdk 26 · compileSdk 36
+ViewModel + StateFlow · Firebase Auth + Firestore + Credential Manager · minSdk 26 · compileSdk 36
 
 Poppins is bundled under the SIL Open Font License; see `licenses/`.
 
@@ -68,8 +68,8 @@ Run the local model tests and the Android UI flow on a connected emulator:
 
 The UI test covers guest entry, contacts permission, the initially empty favourites
 state, notifications, Send, Receive, scan, discovery, adding a nearby friend,
-bottom navigation and profile/account actions. Unit tests cover favourite selection
-and transfer progress behavior.
+bottom navigation and profile/account actions. Unit tests cover favourite
+selection, transfer progress and FlyDrop ID validation.
 
 `local.properties` is not committed — point `sdk.dir` at your Android SDK, or set
 `ANDROID_HOME`.
@@ -101,6 +101,36 @@ Sign-in uses Credential Manager with `GetGoogleIdOption` — authorised accounts
 first for a one-tap sheet, falling back to the full picker. It needs Google Play
 Services **and a Google account on the device**, so an emulator must use a
 `google_apis_playstore` system image; a plain `google_apis` image cannot sign in.
+
+## FlyDrop IDs
+
+Every signed-in account gets a FlyDrop ID derived from its Firebase uid, and can
+change it to something of its own **once**. Two accounts can never hold the same
+id.
+
+Both rules live in Firestore rather than in the client:
+
+- `flyIds/{handle}` is a reservation document whose **id is the handle**, so
+  uniqueness is structural — two accounts cannot create one document. Handles are
+  stored lowercase, so case cannot be used to claim an id twice. Reservations are
+  never updated or deleted: a retired id keeps pointing at whoever held it rather
+  than being handed to a stranger.
+- `users/{uid}.handleChanged` starts false and may only ever move to true, which
+  is the once-only limit.
+
+`ProfileRepository` writes both documents in a single transaction, so a race
+between two devices resolves to one winner. That is the cooperative half;
+`firestore.rules` is the authoritative half, since a modified client can skip the
+repository entirely. Deploy it alongside the app:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+Without Firebase configured the app still runs: Profile shows the derived id and
+simply does not offer to change it. Handle shape — length, allowed characters,
+reserved names — is `data/profile/FlyIdRules.kt`, checked in the client for fast
+feedback and again in the rules on create.
 
 ## Contacts
 
