@@ -72,6 +72,9 @@ import com.flydrop.app.ui.nearby.bluetoothEnableIntent
 import com.flydrop.app.ui.nearby.needsBluetoothConnectPermission
 import com.flydrop.app.ui.nearby.openWifiControls
 import com.flydrop.app.ui.nearby.rememberRadioStatus
+import com.flydrop.app.data.share.ShareOutcome
+import com.flydrop.app.data.share.openQuickShareReceive
+import com.flydrop.app.data.share.shareFiles
 import com.flydrop.app.ui.profile.ProfileScreen
 import com.flydrop.app.ui.profile.ProfileViewModel
 import com.flydrop.app.ui.settings.SettingsRoute
@@ -326,6 +329,7 @@ private fun FlyDropNavHost(
                 val context = LocalContext.current
                 val radioStatus = rememberRadioStatus()
                 var radiosDialogOpen by remember { mutableStateOf(false) }
+                var shareError by remember { mutableStateOf<String?>(null) }
 
                 // Android's own consent dialog does the enabling; the result is
                 // ignored because rememberRadioStatus re-reads on resume, which
@@ -349,6 +353,22 @@ private fun FlyDropNavHost(
                     onAddFriend = viewModel::addFriend,
                     pickedFiles = pickedFiles,
                     onClearPickedFiles = { pickedFiles = emptyList() },
+                    onSendWithQuickShare = {
+                        shareError = when (val outcome = shareFiles(context, pickedFiles)) {
+                            is ShareOutcome.Launched -> null
+                            is ShareOutcome.NothingSelected -> "Pick a file to send first."
+                            is ShareOutcome.Failed -> outcome.message
+                        }
+                    },
+                    onReceiveWithQuickShare = {
+                        shareError = if (openQuickShareReceive(context)) {
+                            null
+                        } else {
+                            "This phone has no Quick Share settings screen to open."
+                        }
+                    },
+                    shareError = shareError,
+                    onDismissShareError = { shareError = null },
                     contentPadding = screenPadding,
                 )
 

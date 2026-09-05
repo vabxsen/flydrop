@@ -3,6 +3,7 @@ package com.flydrop.app.data
 import android.content.ContentResolver
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.webkit.MimeTypeMap
 import androidx.compose.runtime.Immutable
 
 /** A file the user chose to send, as returned by the system document picker. */
@@ -12,7 +13,38 @@ data class PickedFile(
     val name: String,
     /** Null when the provider does not report a size, which is allowed. */
     val sizeBytes: Long?,
+    /**
+     * What the provider says this is, falling back to the extension and then to
+     * [FALLBACK_MIME_TYPE]. Resolved when the file is picked so sharing does not
+     * have to query the provider again.
+     */
+    val mimeType: String = FALLBACK_MIME_TYPE,
 )
+
+/** What an unidentifiable file is called. Every Sharesheet target accepts it. */
+const val FALLBACK_MIME_TYPE = "application/octet-stream"
+
+/**
+ * The provider's own answer where there is one, otherwise a guess from the file
+ * extension.
+ *
+ * A provider is entitled to return null, and some return the useless
+ * `application/octet-stream` for everything, so the extension is consulted
+ * whenever the answer carries no information. Getting this right matters: the
+ * Sharesheet filters its targets on the MIME type, so a photo typed as
+ * octet-stream loses the targets that only accept images.
+ */
+fun ContentResolver.resolveMimeType(uri: Uri, fileName: String): String {
+    val reported = runCatching { getType(uri) }.getOrNull()
+    if (!reported.isNullOrBlank() && reported != FALLBACK_MIME_TYPE) return reported
+
+    val extension = fileName.substringAfterLast('.', "").lowercase()
+    val fromExtension = extension
+        .takeIf { it.isNotEmpty() }
+        ?.let { MimeTypeMap.getSingleton().getMimeTypeFromExtension(it) }
+
+    return fromExtension ?: reported?.takeIf { it.isNotBlank() } ?: FALLBACK_MIME_TYPE
+}
 
 /**
  * Resolves display names and sizes for picked files.
@@ -43,17 +75,19 @@ fun ContentResolver.describePickedFiles(uris: List<Uri>): List<PickedFile> =
                 } else {
                     null
                 }
-                PickedFile(uri = uri, name = name.orEmpty(), sizeBytes = size)
+                name.orEmpty() to size
             }
         }.getOrNull()
 
-        described?.takeIf { it.name.isNotEmpty() }
-            ?: PickedFile(
-                uri = uri,
-                name = uri.lastPathSegment?.substringAfterLast('/').orEmpty()
-                    .ifEmpty { "Unnamed file" },
-                sizeBytes = described?.sizeBytes,
-            )
+        val name = described?.first?.takeIf { it.isNotEmpty() }
+            ?: uri.lastPathSegment?.substringAfterLast('/').orEmpty().ifEmpty { "Unnamed file" }
+
+        PickedFile(
+            uri = uri,
+            name = name,
+            sizeBytes = described?.second,
+            mimeType = resolveMimeType(uri, name),
+        )
     }
 
 /** Compact size label, e.g. "4.2 MB". Null sizes read as an em dash. */
