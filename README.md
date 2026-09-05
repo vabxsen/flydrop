@@ -14,7 +14,7 @@ radar, the transfer arc, the switch, the cards and the icon set are all bespoke.
 | **Home** | Two-tone layout: a pale aqua hero (profile card, split Send/Receive actions, Flydrop Web strip) with a full-bleed white sheet rising over it carrying user-selected Favourite Friends and the phone's Contacts. |
 | **Nearby** | Discovery radar drawn on the background — concentric rings, a breathing centre bloom, a slow scanning pulse and devices placed by polar coordinates — above a white Nearby Friends panel. |
 | **File Transfer** | Animated circular progress with both participants, a three-column stats strip, and per-file rows with their own progress rings. |
-| **Sign in / Profile** | Not in the reference; built from the same vocabulary. Google sign-in, the account with its editable FlyDrop ID, and a way back out of it. |
+| **Sign in / Profile** | Not in the reference; built from the same vocabulary. Google sign-in, the account with its editable FlyDrop ID and profile photo, and a way back out of it. |
 | **About** | Reached from Profile. Two tabs over one sheet — **Version** (version name, build number, package, build type) and **Credits** (licences and what the app is built from). |
 
 ## Design tokens
@@ -40,10 +40,26 @@ so the whole layout can be retuned from one place.
 
 ## Avatars
 
-There are no image assets. Avatars are generated as vector portraits from a
+The app ships no image assets. Avatars are generated as vector portraits from a
 deterministic seed (`ui/components/Avatar.kt`), so the same account always draws
 the same face, nothing is fetched, and Compose previews render fully offline.
-Swap the body of that one composable for an image loader to use real pictures.
+Peers are always drawn this way.
+
+The signed-in user can replace their own with a photo, from the avatar's camera
+badge on Profile. It comes from Android's system photo picker, which returns one
+image and needs **no storage permission**, so the app never asks for the gallery.
+`data/profile/AvatarStore.kt` copies the pick into the app's private files
+directory rather than holding the picker's `content://` URI, which is temporary
+and would leave the avatar working until the next reboot and then vanishing. On
+the way in the image is oriented from its EXIF tag, centre-cropped square and
+downscaled to 512px, so every screen draws a small, already-correct bitmap and a
+40-megapixel camera photo cannot exhaust memory.
+
+Photos are filed per account (guest mode included), so signing into a different
+account on the same device does not show the previous user's face. They are
+**device-local**: nothing is uploaded, so a photo does not follow the account to
+another phone and peers do not see it. Making it travel would mean Firebase
+Storage — an upload path, storage rules and a URL on the Firestore profile.
 
 ## Stack
 
@@ -69,8 +85,9 @@ Run the local model tests and the Android UI flow on a connected emulator:
 
 The UI test covers guest entry, contacts permission, the initially empty favourites
 state, notifications, Send, Receive, scan, discovery, adding a nearby friend,
-bottom navigation, profile/account actions and the About tabs. Unit tests cover
-favourite selection, transfer progress and FlyDrop ID validation.
+bottom navigation, profile/account actions, the profile photo sheet and the About
+tabs. Unit tests cover favourite selection, transfer progress and FlyDrop ID
+validation.
 
 `local.properties` is not committed — point `sdk.dir` at your Android SDK, or set
 `ANDROID_HOME`.

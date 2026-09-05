@@ -3,6 +3,7 @@ package com.flydrop.app.ui.navigation
 import android.Manifest
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
@@ -250,6 +251,7 @@ private fun FlyDropNavHost(
                     onToggleFavourite = viewModel::toggleFavourite,
                     onRequestContactsPermission = viewModel::requestContactsPermission,
                     onRetryContacts = viewModel::retryContacts,
+                    avatar = flyIdState.avatar,
                     contentPadding = screenPadding,
                 )
             }
@@ -267,6 +269,13 @@ private fun FlyDropNavHost(
             }
 
             composable(Routes.PROFILE) {
+                // The system photo picker: it hands back one image with no
+                // storage permission at all, so the app never asks for access
+                // to the whole gallery to set one avatar.
+                val photoPicker = rememberLauncherForActivityResult(
+                    ActivityResultContracts.PickVisualMedia(),
+                    profileViewModel::onAvatarPicked,
+                )
                 ProfileScreen(
                     user = identity ?: MockData.currentUser,
                     signedIn = signedInUser != null,
@@ -276,6 +285,14 @@ private fun FlyDropNavHost(
                     onConfirmFlyId = profileViewModel::confirmEdit,
                     onDismissFlyIdEditor = profileViewModel::dismissEditor,
                     onDismissFlyIdMessage = profileViewModel::dismissMessage,
+                    onEditAvatar = profileViewModel::openAvatarSheet,
+                    onChooseAvatar = {
+                        photoPicker.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly),
+                        )
+                    },
+                    onRemoveAvatar = profileViewModel::removeAvatar,
+                    onDismissAvatarSheet = profileViewModel::dismissAvatarSheet,
                     onOpenAbout = { navController.navigate(Routes.ABOUT) },
                     onSignOut = onSignOut,
                     contentPadding = screenPadding,

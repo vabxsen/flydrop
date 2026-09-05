@@ -17,6 +17,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -36,6 +37,7 @@ fun ProfileCard(
     onReceiveFile: () -> Unit,
     onScan: () -> Unit,
     modifier: Modifier = Modifier,
+    photo: ImageBitmap? = null,
 ) {
     val dimens = FlyDrop.dimens
     SoftCard(
@@ -48,7 +50,7 @@ fun ProfileCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Avatar(seed = user.avatarSeed, size = dimens.profileAvatar)
+                Avatar(seed = user.avatarSeed, size = dimens.profileAvatar, photo = photo)
                 Spacer(Modifier.width(11.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(

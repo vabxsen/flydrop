@@ -181,6 +181,27 @@ object FlyDropIcons {
         }
     }
 
+    val Camera: ImageVector by lazy {
+        strokeIcon("Camera") {
+            // Body, with the viewfinder hump rising off its top edge.
+            moveTo(5.1f, 7.6f); horizontalLineTo(8.4f); lineTo(9.5f, 4.8f)
+            horizontalLineTo(14.5f); lineTo(15.6f, 7.6f); horizontalLineTo(18.9f)
+            curveTo(20.3f, 7.6f, 21.4f, 8.7f, 21.4f, 10.1f)
+            verticalLineTo(17.6f)
+            curveTo(21.4f, 19.0f, 20.3f, 20.1f, 18.9f, 20.1f)
+            horizontalLineTo(5.1f)
+            curveTo(3.7f, 20.1f, 2.6f, 19.0f, 2.6f, 17.6f)
+            verticalLineTo(10.1f)
+            curveTo(2.6f, 8.7f, 3.7f, 7.6f, 5.1f, 7.6f); close()
+            // Lens.
+            moveTo(15.2f, 13.8f)
+            curveTo(15.2f, 15.6f, 13.8f, 17.0f, 12.0f, 17.0f)
+            curveTo(10.2f, 17.0f, 8.8f, 15.6f, 8.8f, 13.8f)
+            curveTo(8.8f, 12.0f, 10.2f, 10.6f, 12.0f, 10.6f)
+            curveTo(13.8f, 10.6f, 15.2f, 12.0f, 15.2f, 13.8f); close()
+        }
+    }
+
     val Plus: ImageVector by lazy {
         strokeIcon("Plus", strokeWidth = 2.1f) {
             moveTo(12.0f, 5.4f); verticalLineTo(18.6f)

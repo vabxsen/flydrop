@@ -1,9 +1,13 @@
 package com.flydrop.app.ui.profile
 
 import android.app.Application
+import android.net.Uri
 import androidx.compose.runtime.Immutable
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.flydrop.app.data.profile.AvatarResult
+import com.flydrop.app.data.profile.AvatarStore
 import com.flydrop.app.data.profile.ClaimResult
 import com.flydrop.app.data.profile.FlyIdRules
 import com.flydrop.app.data.profile.FlyProfile
@@ -31,25 +35,40 @@ data class ProfileUiState(
     val saving: Boolean = false,
     /** Outcome of the last attempt, shown under the field or as confirmation. */
     val message: String? = null,
+    /** Colours [message] as a problem rather than a confirmation. */
+    val messageIsError: Boolean = false,
+    /** The user's chosen profile photo; null means the generated avatar. */
+    val avatar: ImageBitmap? = null,
+    /** A pick is being decoded and stored. */
+    val avatarBusy: Boolean = false,
+    val avatarSheetOpen: Boolean = false,
 )
 
 /**
- * Drives the FlyDrop ID card on Profile.
+ * Drives the editable parts of Profile: the FlyDrop ID card and the profile
+ * photo.
  *
- * Uniqueness and the one-change limit are decided by [ProfileRepository] and the
- * Firestore rules behind it; this only keeps the editor honest about shape
- * before a round trip is worth making, and turns the repository's outcomes into
- * something to read.
+ * Uniqueness and the one-change limit on the id are decided by
+ * [ProfileRepository] and the Firestore rules behind it; this only keeps the
+ * editor honest about shape before a round trip is worth making, and turns the
+ * repository's outcomes into something to read. The photo is [AvatarStore]'s,
+ * kept on the device and filed per account.
  */
 class ProfileViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = ProfileRepository(application)
+    private val avatarStore = AvatarStore(application)
 
     private val _uiState = MutableStateFlow(ProfileUiState())
     val uiState: StateFlow<ProfileUiState> = _uiState.asStateFlow()
 
     private var boundUid: String? = null
+    private var bound = false
     private var observeJob: Job? = null
+    private var avatarJob: Job? = null
+
+    /** Photos are filed per account; guest mode gets its own. */
+    private val avatarKey: String get() = boundUid ?: AvatarStore.GUEST_KEY
 
     /**
      * Points the screen at an account, or at nothing when the app is running in
@@ -57,10 +76,18 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
      * that come with navigating back to Profile do not restart the listener.
      */
     fun bind(uid: String?) {
-        if (uid == boundUid) return
+        if (bound && uid == boundUid) return
+        bound = true
         boundUid = uid
         observeJob?.cancel()
+        avatarJob?.cancel()
         _uiState.value = ProfileUiState()
+
+        // Guest mode has no FlyDrop ID to read, but it can still have a photo.
+        avatarJob = viewModelScope.launch {
+            val stored = avatarStore.load(avatarKey)
+            if (stored != null) _uiState.update { it.copy(avatar = stored) }
+        }
 
         val account = uid ?: return
         observeJob = viewModelScope.launch {
@@ -172,6 +199,61 @@ class ProfileViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun dismissMessage() {
-        _uiState.update { it.copy(message = null) }
+        _uiState.update { it.copy(message = null, messageIsError = false) }
+    }
+
+    fun openAvatarSheet() {
+        if (_uiState.value.avatarBusy) return
+        _uiState.update { it.copy(avatarSheetOpen = true, message = null, messageIsError = false) }
+    }
+
+    fun dismissAvatarSheet() {
+        _uiState.update { it.copy(avatarSheetOpen = false) }
+    }
+
+    /**
+     * Takes the photo picker's result. A null [source] means the user backed
+     * out of the picker, which is not an error and leaves the current photo be.
+     */
+    fun onAvatarPicked(source: Uri?) {
+        _uiState.update { it.copy(avatarSheetOpen = false) }
+        if (source == null) return
+
+        _uiState.update { it.copy(avatarBusy = true, message = null, messageIsError = false) }
+        val key = avatarKey
+        viewModelScope.launch {
+            when (val result = avatarStore.save(key, source)) {
+                is AvatarResult.Success -> _uiState.update {
+                    it.copy(
+                        avatarBusy = false,
+                        avatar = result.image,
+                        message = "Profile photo updated.",
+                        messageIsError = false,
+                    )
+                }
+
+                is AvatarResult.Failure -> _uiState.update {
+                    it.copy(
+                        avatarBusy = false,
+                        message = result.message,
+                        messageIsError = true,
+                    )
+                }
+            }
+        }
+    }
+
+    /** Drops the custom photo and goes back to the generated avatar. */
+    fun removeAvatar() {
+        _uiState.update {
+            it.copy(
+                avatarSheetOpen = false,
+                avatar = null,
+                message = "Back to your generated avatar.",
+                messageIsError = false,
+            )
+        }
+        val key = avatarKey
+        viewModelScope.launch { avatarStore.clear(key) }
     }
 }

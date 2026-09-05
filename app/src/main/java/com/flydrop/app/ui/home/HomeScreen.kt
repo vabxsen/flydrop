@@ -24,6 +24,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -63,6 +64,8 @@ fun HomeScreen(
     onRequestContactsPermission: () -> Unit,
     onRetryContacts: () -> Unit,
     modifier: Modifier = Modifier,
+    /** The signed-in user's own profile photo, when they have set one. */
+    avatar: ImageBitmap? = null,
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
     val dimens = FlyDrop.dimens
@@ -88,6 +91,7 @@ fun HomeScreen(
                 )
                 ProfileCard(
                     user = state.currentUser,
+                    photo = avatar,
                     onSendFile = onSendFile,
                     onReceiveFile = onReceiveFile,
                     onScan = onScan,

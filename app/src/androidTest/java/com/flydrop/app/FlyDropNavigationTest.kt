@@ -73,9 +73,24 @@ class FlyDropNavigationTest {
 
         navigateTo("Profile")
         composeRule.onNodeWithText("Not signed in").assertIsDisplayed()
+        openAndDismissAvatarSheet()
         openAboutAndSwitchTabs()
         composeRule.onNodeWithText("Sign in").performClick()
         composeRule.onNodeWithText("Sign in to continue").assertIsDisplayed()
+    }
+
+    /**
+     * The avatar badge opens the photo sheet and Cancel closes it. The pick
+     * itself launches the system photo picker, which is outside the app and so
+     * outside what this test can drive.
+     */
+    private fun openAndDismissAvatarSheet() {
+        composeRule.onNodeWithContentDescription("Change profile photo").performClick()
+        composeRule.onNodeWithText("Choose a photo").assertIsDisplayed()
+        // Nothing to remove until a photo is set.
+        composeRule.onNodeWithText("Use my generated avatar").assertDoesNotExist()
+        composeRule.onNodeWithText("Cancel").performClick()
+        composeRule.onNodeWithText("Choose a photo").assertDoesNotExist()
     }
 
     /** About opens from Profile, both tabs render, and Back returns to Profile. */

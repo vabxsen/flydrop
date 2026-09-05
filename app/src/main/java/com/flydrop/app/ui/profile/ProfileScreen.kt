@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -33,12 +34,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.flydrop.app.data.MockData
@@ -70,6 +75,10 @@ fun ProfileScreen(
     onConfirmFlyId: () -> Unit = {},
     onDismissFlyIdEditor: () -> Unit = {},
     onDismissFlyIdMessage: () -> Unit = {},
+    onEditAvatar: () -> Unit = {},
+    onChooseAvatar: () -> Unit = {},
+    onRemoveAvatar: () -> Unit = {},
+    onDismissAvatarSheet: () -> Unit = {},
     onOpenAbout: () -> Unit = {},
     onSignOut: () -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(0.dp),
@@ -106,7 +115,12 @@ fun ProfileScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Spacer(Modifier.height(28.dp))
-            Avatar(seed = user.avatarSeed, size = 88.dp)
+            EditableAvatar(
+                seed = user.avatarSeed,
+                photo = flyIdState.avatar,
+                busy = flyIdState.avatarBusy,
+                onClick = onEditAvatar,
+            )
             Spacer(Modifier.height(14.dp))
             Text(
                 text = user.name,
@@ -160,7 +174,7 @@ fun ProfileScreen(
                     Text(
                         text = flyIdState.message.orEmpty(),
                         style = FlyDrop.type.secondary,
-                        color = colors.teal,
+                        color = if (flyIdState.messageIsError) ErrorRed else colors.teal,
                     )
                 }
             }
@@ -179,6 +193,161 @@ fun ProfileScreen(
             onInputChange = onFlyIdInputChange,
             onConfirm = onConfirmFlyId,
             onDismiss = onDismissFlyIdEditor,
+        )
+    }
+
+    if (flyIdState.avatarSheetOpen) {
+        AvatarChoiceDialog(
+            hasPhoto = flyIdState.avatar != null,
+            onChoose = onChooseAvatar,
+            onRemove = onRemoveAvatar,
+            onDismiss = onDismissAvatarSheet,
+        )
+    }
+}
+
+/**
+ * The profile photo with its edit affordance: a violet camera badge tucked into
+ * the lower-right of the disc, ringed in the hero colour so it reads as sitting
+ * on top of the avatar rather than punched out of it.
+ */
+@Composable
+private fun EditableAvatar(
+    seed: Int,
+    photo: ImageBitmap?,
+    busy: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    size: Dp = 88.dp,
+) {
+    val colors = FlyDrop.colors
+    Box(
+        modifier = modifier.size(size),
+        contentAlignment = Alignment.BottomEnd,
+    ) {
+        Avatar(seed = seed, size = size, photo = photo)
+
+        // Dimmed while a pick is being decoded, so the badge's spinner reads as
+        // being about this avatar.
+        if (busy) {
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .clip(CircleShape)
+                    .background(Color.White.copy(alpha = 0.55f)),
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .size(30.dp)
+                .clip(CircleShape)
+                .background(colors.heroAqua, CircleShape)
+                .padding(2.dp)
+                .clip(CircleShape)
+                .background(colors.violet, CircleShape)
+                .clickable(enabled = !busy, onClick = onClick)
+                .semantics { contentDescription = "Change profile photo" },
+            contentAlignment = Alignment.Center,
+        ) {
+            if (busy) {
+                CircularProgressIndicator(
+                    color = Color.White,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(14.dp),
+                )
+            } else {
+                Icon(
+                    imageVector = FlyDropIcons.Camera,
+                    contentDescription = null,
+                    tint = Color.White,
+                    modifier = Modifier.size(15.dp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Picking a photo and clearing it are one decision, so they are offered
+ * together rather than the badge silently launching the picker — clearing has
+ * no other home, and a tap that opens a system picker with no warning is worse
+ * than a tap that explains itself.
+ */
+@Composable
+private fun AvatarChoiceDialog(
+    hasPhoto: Boolean,
+    onChoose: () -> Unit,
+    onRemove: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = FlyDrop.colors
+    Dialog(onDismissRequest = onDismiss) {
+        SoftCard(shape = FlyDrop.shapes.largeCard, elevation = 8.dp) {
+            Column(modifier = Modifier.padding(20.dp)) {
+                Text(
+                    text = "Profile photo",
+                    style = FlyDrop.type.sectionTitle,
+                    color = colors.textPrimary,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "Kept on this device only. It is not uploaded, so it " +
+                        "does not follow you to another phone.",
+                    style = FlyDrop.type.secondary,
+                    color = colors.textSecondary,
+                )
+                Spacer(Modifier.height(16.dp))
+
+                ChoiceRow(
+                    label = if (hasPhoto) "Choose a different photo" else "Choose a photo",
+                    onClick = onChoose,
+                )
+                if (hasPhoto) {
+                    Spacer(Modifier.height(FlyDrop.dimens.cardGap))
+                    ChoiceRow(
+                        label = "Use my generated avatar",
+                        onClick = onRemove,
+                    )
+                }
+
+                Spacer(Modifier.height(18.dp))
+                Row(horizontalArrangement = Arrangement.End, modifier = Modifier.fillMaxWidth()) {
+                    DialogButton(
+                        label = "Cancel",
+                        enabled = true,
+                        filled = false,
+                        onClick = onDismiss,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChoiceRow(label: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val shape = FlyDrop.shapes.tile
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(FlyDrop.colors.paleTile, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 14.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = FlyDrop.type.cardTitle,
+            color = FlyDrop.colors.textPrimary,
+            modifier = Modifier.weight(1f),
+        )
+        Icon(
+            imageVector = FlyDropIcons.ChevronRight,
+            contentDescription = null,
+            tint = FlyDrop.colors.textTertiary,
+            modifier = Modifier.size(16.dp),
         )
     }
 }
@@ -577,6 +746,22 @@ private fun ProfileScreenEditorPreview() {
                 canEdit = true,
                 editorOpen = true,
                 input = "lucas",
+            ),
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 380, heightDp = 820)
+@Composable
+private fun ProfileScreenAvatarSheetPreview() {
+    FlyDropTheme {
+        ProfileScreen(
+            user = MockData.currentUser.copy(email = "lucas@example.com"),
+            signedIn = true,
+            flyIdState = ProfileUiState(
+                flyId = "fly#lucas",
+                canEdit = true,
+                avatarSheetOpen = true,
             ),
         )
     }

@@ -14,15 +14,20 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.flydrop.app.ui.theme.FlyDrop
 import com.flydrop.app.ui.theme.FlyDropTheme
+import kotlin.math.roundToInt
 
 /**
  * A generated, deterministic avatar: a soft two-stop gradient disc with a
@@ -30,8 +35,11 @@ import com.flydrop.app.ui.theme.FlyDropTheme
  *
  * The reference mockup uses stock portrait photography, which cannot be shipped.
  * This keeps the same visual weight and warmth at every size the design needs,
- * with no image assets and nothing to load. Swap the body of this composable for
- * an image loader later and every screen picks it up.
+ * with no image assets and nothing to load.
+ *
+ * [photo] replaces the generated portrait when the user has chosen one of their
+ * own. It fills the same disc, so every screen keeps its layout whether or not
+ * a photo is set, and peers — who have no photo — still get a drawn avatar.
  */
 @Composable
 fun Avatar(
@@ -40,6 +48,7 @@ fun Avatar(
     modifier: Modifier = Modifier,
     ringColor: Color? = null,
     ringWidth: Dp = 2.5.dp,
+    photo: ImageBitmap? = null,
 ) {
     val palette = avatarPalette(seed)
     Canvas(modifier = modifier.size(size)) {
@@ -63,18 +72,41 @@ fun Avatar(
         val disc = Path().apply { addOval(discRect) }
 
         clipPath(disc) {
-            drawRect(
-                brush = Brush.linearGradient(
-                    colors = listOf(palette.top, palette.bottom),
-                    start = Offset(discRect.left, discRect.top),
-                    end = Offset(discRect.right, discRect.bottom),
-                ),
-                topLeft = discRect.topLeft,
-                size = discRect.size,
-            )
-            drawPortrait(discRect, palette, seed)
+            if (photo != null) {
+                drawPhoto(discRect, photo)
+            } else {
+                drawRect(
+                    brush = Brush.linearGradient(
+                        colors = listOf(palette.top, palette.bottom),
+                        start = Offset(discRect.left, discRect.top),
+                        end = Offset(discRect.right, discRect.bottom),
+                    ),
+                    topLeft = discRect.topLeft,
+                    size = discRect.size,
+                )
+                drawPortrait(discRect, palette, seed)
+            }
         }
     }
+}
+
+/**
+ * Fills the disc with [photo], centre-cropping to the shorter side.
+ *
+ * [com.flydrop.app.data.profile.AvatarStore] already stores a square, so the
+ * crop is normally a no-op — it is here so a non-square bitmap from anywhere
+ * else fills the circle rather than stretching inside it.
+ */
+private fun DrawScope.drawPhoto(bounds: Rect, photo: ImageBitmap) {
+    val side = minOf(photo.width, photo.height)
+    drawImage(
+        image = photo,
+        srcOffset = IntOffset((photo.width - side) / 2, (photo.height - side) / 2),
+        srcSize = IntSize(side, side),
+        dstOffset = IntOffset(bounds.left.roundToInt(), bounds.top.roundToInt()),
+        dstSize = IntSize(bounds.width.roundToInt(), bounds.height.roundToInt()),
+        filterQuality = FilterQuality.High,
+    )
 }
 
 /**
