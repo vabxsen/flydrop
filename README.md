@@ -15,6 +15,7 @@ radar, the transfer arc, the switch, the cards and the icon set are all bespoke.
 | **Nearby** | Discovery radar drawn on the background — concentric rings, a breathing centre bloom, a slow scanning pulse and devices placed by polar coordinates — above a white Nearby Friends panel. |
 | **File Transfer** | Animated circular progress with both participants, a three-column stats strip, and per-file rows with their own progress rings. |
 | **Sign in / Profile** | Not in the reference; built from the same vocabulary. Google sign-in, the account with its editable FlyDrop ID, and a way back out of it. |
+| **About** | Reached from Profile. Two tabs over one sheet — **Version** (version name, build number, package, build type) and **Credits** (licences and what the app is built from). |
 
 ## Design tokens
 
@@ -68,8 +69,8 @@ Run the local model tests and the Android UI flow on a connected emulator:
 
 The UI test covers guest entry, contacts permission, the initially empty favourites
 state, notifications, Send, Receive, scan, discovery, adding a nearby friend,
-bottom navigation and profile/account actions. Unit tests cover favourite
-selection, transfer progress and FlyDrop ID validation.
+bottom navigation, profile/account actions and the About tabs. Unit tests cover
+favourite selection, transfer progress and FlyDrop ID validation.
 
 `local.properties` is not committed — point `sdk.dir` at your Android SDK, or set
 `ANDROID_HOME`.
@@ -141,7 +142,7 @@ app preferences and the section is empty until the user chooses someone.
 
 ## Status
 
-The three reference screens, sign-in and profile are implemented; nearby devices
+The three reference screens, sign-in, profile and about are implemented; nearby devices
 and transfers still use mock data (`data/MockData.kt`), while Home contacts come
 from Android's contacts provider. Actual peer-to-peer transfer — Nearby Connections or
 Wi-Fi Direct — is not wired up; the models and ViewModels are shaped so it can be

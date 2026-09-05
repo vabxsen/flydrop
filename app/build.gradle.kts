@@ -86,6 +86,8 @@ android {
 
     buildFeatures {
         compose = true
+        // About > Version reads the version name and code from BuildConfig.
+        buildConfig = true
     }
 }
 

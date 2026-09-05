@@ -38,9 +38,12 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.flydrop.app.BuildConfig
 import com.flydrop.app.data.MockData
 import com.flydrop.app.data.model.FlyUser
 import com.flydrop.app.data.model.TransferDirection
+import com.flydrop.app.ui.about.AboutInfo
+import com.flydrop.app.ui.about.AboutScreen
 import com.flydrop.app.ui.auth.AuthStatus
 import com.flydrop.app.ui.auth.AuthViewModel
 import com.flydrop.app.ui.auth.SignInScreen
@@ -63,6 +66,7 @@ private object Routes {
     const val HOME = "home"
     const val NEARBY = "nearby"
     const val PROFILE = "profile"
+    const val ABOUT = "about"
     const val TRANSFER = "transfer/{peerId}/{peerName}/{direction}"
 
     fun transfer(peer: FlyUser, direction: TransferDirection): String =
@@ -137,7 +141,8 @@ private fun SplashScreen(modifier: Modifier = Modifier) {
 }
 
 /**
- * Hosts the three tab destinations plus the File Transfer screen.
+ * Hosts the three tab destinations plus the File Transfer and About screens.
+ * Neither of those is a tab route, so the floating navigation hides on both.
  *
  * The floating navigation is drawn over the content rather than reserving a
  * slot for it, which is what lets the screens run edge to edge underneath, as
@@ -189,6 +194,16 @@ private fun FlyDropNavHost(
             } else {
                 0.dp
             },
+        )
+    }
+
+    // Read once: what the build is cannot change while it is running.
+    val aboutInfo = remember {
+        AboutInfo(
+            versionName = BuildConfig.VERSION_NAME,
+            versionCode = BuildConfig.VERSION_CODE,
+            packageName = BuildConfig.APPLICATION_ID,
+            debugBuild = BuildConfig.DEBUG,
         )
     }
 
@@ -261,8 +276,24 @@ private fun FlyDropNavHost(
                     onConfirmFlyId = profileViewModel::confirmEdit,
                     onDismissFlyIdEditor = profileViewModel::dismissEditor,
                     onDismissFlyIdMessage = profileViewModel::dismissMessage,
+                    onOpenAbout = { navController.navigate(Routes.ABOUT) },
                     onSignOut = onSignOut,
                     contentPadding = screenPadding,
+                )
+            }
+
+            composable(
+                route = Routes.ABOUT,
+                enterTransition = { slideInVertically(tween(300)) { it / 6 } + fadeIn(tween(300)) },
+                popExitTransition = { slideOutVertically(tween(260)) { it / 6 } + fadeOut(tween(260)) },
+            ) {
+                AboutScreen(
+                    info = aboutInfo,
+                    onBack = { navController.popBackStack() },
+                    contentPadding = PaddingValues(
+                        top = statusBarPadding,
+                        bottom = navigationBarPadding,
+                    ),
                 )
             }
 

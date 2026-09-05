@@ -70,6 +70,7 @@ fun ProfileScreen(
     onConfirmFlyId: () -> Unit = {},
     onDismissFlyIdEditor: () -> Unit = {},
     onDismissFlyIdMessage: () -> Unit = {},
+    onOpenAbout: () -> Unit = {},
     onSignOut: () -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
@@ -146,6 +147,8 @@ fun ProfileScreen(
                 label = "Account",
                 value = if (signedIn) "Signed in with Google" else "Not signed in",
             )
+            Spacer(Modifier.height(dimens.cardGap))
+            AboutRow(onClick = onOpenAbout)
 
             AnimatedVisibility(
                 visible = flyIdState.message != null,
@@ -439,6 +442,37 @@ private fun DialogButton(
             style = FlyDrop.type.buttonLabel,
             color = if (filled && !enabled) colors.violet else content,
         )
+    }
+}
+
+/** The way through to About, carrying the chevron the app uses for navigation. */
+@Composable
+private fun AboutRow(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    SoftCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = FlyDrop.shapes.smallCard,
+        elevation = 3.dp,
+        onClick = onClick,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 15.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "About",
+                style = FlyDrop.type.cardTitle,
+                color = FlyDrop.colors.textPrimary,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = FlyDropIcons.ChevronRight,
+                contentDescription = null,
+                tint = FlyDrop.colors.textTertiary,
+                modifier = Modifier.size(16.dp),
+            )
+        }
     }
 }
 

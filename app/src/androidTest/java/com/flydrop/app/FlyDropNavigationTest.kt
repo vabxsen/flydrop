@@ -1,12 +1,18 @@
 package com.flydrop.app
 
 import android.Manifest
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.assertIsNotSelected
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.hasClickAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasContentDescription
+import androidx.compose.ui.test.SemanticsMatcher
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithContentDescription
@@ -67,9 +73,39 @@ class FlyDropNavigationTest {
 
         navigateTo("Profile")
         composeRule.onNodeWithText("Not signed in").assertIsDisplayed()
+        openAboutAndSwitchTabs()
         composeRule.onNodeWithText("Sign in").performClick()
         composeRule.onNodeWithText("Sign in to continue").assertIsDisplayed()
     }
+
+    /** About opens from Profile, both tabs render, and Back returns to Profile. */
+    private fun openAboutAndSwitchTabs() {
+        composeRule.onNodeWithText("About").performClick()
+
+        // Version is the tab About opens on. "Build type" and "Package" appear
+        // only in that pane, so they stand in for it.
+        composeRule.onNodeWithText("Build type").assertIsDisplayed()
+        composeRule.onNodeWithText("Package").assertIsDisplayed()
+
+        aboutTab("Credits").assertIsNotSelected().performClick()
+        aboutTab("Credits").assertIsSelected()
+        composeRule.onNodeWithText("Poppins").assertIsDisplayed()
+        composeRule.onNodeWithText("Build type").assertDoesNotExist()
+
+        aboutTab("Version").performClick()
+        composeRule.onNodeWithText("Build type").assertIsDisplayed()
+
+        composeRule.onNodeWithContentDescription("Back").performClick()
+        composeRule.onNodeWithText("Not signed in").assertIsDisplayed()
+    }
+
+    /**
+     * The tab, not the "Version" row label that shares its text: only the tab
+     * carries the Tab role.
+     */
+    private fun aboutTab(label: String) = composeRule.onNode(
+        hasText(label) and SemanticsMatcher.expectValue(SemanticsProperties.Role, Role.Tab),
+    )
 
     private fun assertNearbyAndToggleDiscovery() {
         composeRule.onNodeWithText("Nearby Friends").assertIsDisplayed()
