@@ -1,7 +1,9 @@
 package com.flydrop.app.ui.settings
 
+import android.app.Activity
 import android.content.ActivityNotFoundException
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -46,6 +48,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
@@ -59,6 +62,12 @@ import com.flydrop.app.ui.theme.FlyDropTheme
 enum class PermissionAccess {
     Granted,
     Required,
+
+    /**
+     * Denied firmly enough that Android will no longer show the request
+     * dialog. Asking again is a no-op, so the only way forward is Settings.
+     */
+    Blocked,
     BuiltIn,
 }
 
@@ -84,9 +93,25 @@ fun SettingsRoute(
     var revision by remember { mutableIntStateOf(0) }
     var actionError by remember { mutableStateOf<String?>(null) }
 
+    // Android never reports "permanently denied" directly. What it does report
+    // is that a rationale should no longer be shown - which, straight after a
+    // denial, means the dialog will not appear again. Recorded here so the row
+    // can send the user to Settings instead of re-requesting into silence.
+    var blocked by remember { mutableStateOf(emptySet<AppPermission>()) }
+    var requested by remember { mutableStateOf<AppPermission?>(null) }
+    val activity = remember(context) { context.findActivity() }
+
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) {
+    ) { results ->
+        requested?.let { permission ->
+            blocked = if (results.isPermanentDenial(activity)) {
+                blocked + permission
+            } else {
+                blocked - permission
+            }
+        }
+        requested = null
         revision++
     }
 
@@ -98,8 +123,8 @@ fun SettingsRoute(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    val items = remember(context, revision) {
-        permissionItems(context = context, sdkInt = Build.VERSION.SDK_INT)
+    val items = remember(context, revision, blocked) {
+        permissionItems(context = context, sdkInt = Build.VERSION.SDK_INT, blocked = blocked)
     }
 
     fun openAppSettings(): Boolean = openSettingsIntent(
@@ -130,13 +155,15 @@ fun SettingsRoute(
                     }
                 }
 
-                item.access == PermissionAccess.Granted -> {
+                item.access == PermissionAccess.Granted ||
+                    item.access == PermissionAccess.Blocked -> {
                     if (!openAppSettings()) {
                         actionError = "Android could not open FlyDrop's app settings."
                     }
                 }
 
                 item.access == PermissionAccess.Required -> {
+                    requested = item.permission
                     permissionLauncher.launch(
                         runtimePermissionsFor(item.permission, Build.VERSION.SDK_INT).toTypedArray(),
                     )
@@ -277,12 +304,16 @@ private fun PermissionCard(
     val statusLabel = when (item.access) {
         PermissionAccess.Granted -> "Allowed"
         PermissionAccess.Required -> "Permission needed"
+        PermissionAccess.Blocked -> "Blocked - change it in Android settings"
         PermissionAccess.BuiltIn -> "Available"
     }
     val showAction = item.access != PermissionAccess.BuiltIn
     val actionLabel = when {
         item.permission == AppPermission.InstallUpdates -> "Manage"
         item.access == PermissionAccess.Granted -> "Manage"
+        // Requesting again would be silently ignored, so send them where the
+        // decision can actually be reversed.
+        item.access == PermissionAccess.Blocked -> "Settings"
         else -> "Allow"
     }
 
@@ -328,10 +359,10 @@ private fun PermissionCard(
                 Text(
                     text = statusLabel,
                     style = FlyDrop.type.metadata,
-                    color = if (item.access == PermissionAccess.Required) {
-                        FlyDrop.colors.violet
-                    } else {
-                        FlyDrop.colors.tealPressed
+                    color = when (item.access) {
+                        PermissionAccess.Required -> FlyDrop.colors.violet
+                        PermissionAccess.Blocked -> ErrorRed
+                        else -> FlyDrop.colors.tealPressed
                     },
                 )
             }
@@ -395,24 +426,28 @@ private fun PermissionNote(
     }
 }
 
-internal fun permissionItems(context: Context, sdkInt: Int): List<PermissionItem> = listOf(
+internal fun permissionItems(
+    context: Context,
+    sdkInt: Int,
+    blocked: Set<AppPermission> = emptySet(),
+): List<PermissionItem> = listOf(
     PermissionItem(
         permission = AppPermission.Contacts,
         title = "Contacts",
         description = "Show contact names in your FlyDrop list.",
-        access = runtimeAccess(context, AppPermission.Contacts, sdkInt),
+        access = runtimeAccess(context, AppPermission.Contacts, sdkInt, blocked),
     ),
     PermissionItem(
         permission = AppPermission.NearbyWifi,
         title = "Nearby Wi-Fi",
         description = "Find and connect to nearby FlyDrop devices.",
-        access = runtimeAccess(context, AppPermission.NearbyWifi, sdkInt),
+        access = runtimeAccess(context, AppPermission.NearbyWifi, sdkInt, blocked),
     ),
     PermissionItem(
         permission = AppPermission.Bluetooth,
         title = "Bluetooth",
         description = "Discover nearby devices and make connections.",
-        access = runtimeAccess(context, AppPermission.Bluetooth, sdkInt),
+        access = runtimeAccess(context, AppPermission.Bluetooth, sdkInt, blocked),
     ),
     PermissionItem(
         permission = AppPermission.Internet,
@@ -436,11 +471,45 @@ private fun runtimeAccess(
     context: Context,
     permission: AppPermission,
     sdkInt: Int,
+    blocked: Set<AppPermission>,
 ): PermissionAccess {
     val granted = runtimePermissionsFor(permission, sdkInt).all { androidPermission ->
         ContextCompat.checkSelfPermission(context, androidPermission) == PackageManager.PERMISSION_GRANTED
     }
-    return if (granted) PermissionAccess.Granted else PermissionAccess.Required
+    return accessFor(granted = granted, blocked = permission in blocked)
+}
+
+/**
+ * A live grant outranks a block recorded earlier in the session: the user can
+ * reverse a block from Android's settings while this screen is backgrounded,
+ * and the row must not keep claiming the permission is unavailable.
+ */
+internal fun accessFor(granted: Boolean, blocked: Boolean): PermissionAccess = when {
+    granted -> PermissionAccess.Granted
+    blocked -> PermissionAccess.Blocked
+    else -> PermissionAccess.Required
+}
+
+/**
+ * True when a denial will not be re-promptable.
+ *
+ * Read straight after a request: Android shows a rationale after the first
+ * refusal and stops showing one after the refusal that makes the decision
+ * final, so a denied permission with no rationale left means the dialog is
+ * spent. Without an Activity the flag cannot be read, so this reports false
+ * and the row keeps offering to ask.
+ */
+private fun Map<String, Boolean>.isPermanentDenial(activity: Activity?): Boolean {
+    if (activity == null) return false
+    return any { (permission, granted) ->
+        !granted && !ActivityCompat.shouldShowRequestPermissionRationale(activity, permission)
+    }
+}
+
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
 
 private fun openSettingsIntent(context: Context, intent: Intent): Boolean = try {
@@ -476,7 +545,7 @@ private fun SettingsScreenPreview() {
                     AppPermission.Bluetooth,
                     "Bluetooth",
                     "Discover nearby devices and make connections.",
-                    PermissionAccess.Required,
+                    PermissionAccess.Blocked,
                 ),
                 PermissionItem(
                     AppPermission.Internet,

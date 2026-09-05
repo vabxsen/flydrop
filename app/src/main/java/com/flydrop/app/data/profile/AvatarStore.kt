@@ -66,9 +66,17 @@ class AvatarStore(private val context: Context) {
         AvatarResult.Success(square.asImageBitmap())
     }
 
+    /**
+     * Removes the photo for [key].
+     *
+     * Deleted through [AtomicFile] rather than [File.delete] so the siblings go
+     * too. On Android 10 and earlier a replacement interrupted mid-write leaves
+     * the previous photo in a `.bak` file, and [load] recovers from it on every
+     * Android version - so deleting the base file alone would let a removed
+     * photo reappear on the next read.
+     */
     suspend fun clear(key: String) = withContext(Dispatchers.IO) {
-        fileFor(key).delete()
-        Unit
+        AtomicFile(fileFor(key)).delete()
     }
 
     /**

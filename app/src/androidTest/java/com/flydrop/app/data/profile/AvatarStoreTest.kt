@@ -11,6 +11,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -77,6 +78,29 @@ class AvatarStoreTest {
 
         assertNotNull(store.load(key))
         assertTrue(target.exists())
+    }
+
+    /**
+     * On Android 10 and earlier an interrupted [AtomicFile] write leaves the
+     * previous photo in a `.bak` sibling, and openRead recovers from one on
+     * every Android version. The backup is written directly here because the
+     * emulator this runs on uses the newer `.new` scheme and would not produce
+     * one, but a device upgraded from Android 10 still can.
+     */
+    @Test
+    fun removedAvatarStaysRemovedWhenALegacyBackupSurvives() = runBlocking {
+        val key = uniqueKey()
+        val store = AvatarStore(context)
+        assertTrue(store.save(key, Uri.fromFile(createPng())) is AvatarResult.Success)
+        val target = File(context.noBackupFilesDir, "avatars/$key.png")
+        val backup = File("${target.path}.bak")
+        target.copyTo(backup, overwrite = true)
+
+        store.clear(key)
+
+        assertNull(store.load(key))
+        assertFalse(target.exists())
+        assertFalse(backup.exists())
     }
 
     private fun uniqueKey(): String = "test${System.nanoTime()}".also(keys::add)

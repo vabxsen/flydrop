@@ -56,4 +56,24 @@ class PermissionRequirementsTest {
         assertEquals(emptyList<String>(), runtimePermissionsFor(AppPermission.Internet, 36))
         assertEquals(emptyList<String>(), runtimePermissionsFor(AppPermission.InstallUpdates, 36))
     }
+
+    @Test
+    fun aDeniedPermissionAndroidWillNotRePromptForOffersSettings() {
+        assertEquals(
+            PermissionAccess.Blocked,
+            accessFor(granted = false, blocked = true),
+        )
+        assertEquals(
+            PermissionAccess.Required,
+            accessFor(granted = false, blocked = false),
+        )
+    }
+
+    @Test
+    fun grantingFromAndroidSettingsClearsAnEarlierBlock() {
+        assertEquals(
+            PermissionAccess.Granted,
+            accessFor(granted = true, blocked = true),
+        )
+    }
 }
