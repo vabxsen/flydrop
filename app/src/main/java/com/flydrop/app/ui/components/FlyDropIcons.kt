@@ -181,6 +181,51 @@ object FlyDropIcons {
         }
     }
 
+    /** Angle brackets, the usual shorthand for source. */
+    val Code: ImageVector by lazy {
+        strokeIcon("Code", strokeWidth = 1.9f) {
+            moveTo(8.4f, 7.6f); lineTo(3.4f, 12.0f); lineTo(8.4f, 16.4f)
+            moveTo(15.6f, 7.6f); lineTo(20.6f, 12.0f); lineTo(15.6f, 16.4f)
+        }
+    }
+
+    val Bug: ImageVector by lazy {
+        strokeIcon("Bug") {
+            // Shell.
+            moveTo(7.4f, 11.0f)
+            curveTo(7.4f, 8.5f, 9.5f, 6.5f, 12.0f, 6.5f)
+            curveTo(14.5f, 6.5f, 16.6f, 8.5f, 16.6f, 11.0f)
+            verticalLineTo(14.2f)
+            curveTo(16.6f, 16.7f, 14.5f, 18.7f, 12.0f, 18.7f)
+            curveTo(9.5f, 18.7f, 7.4f, 16.7f, 7.4f, 14.2f)
+            close()
+            // Antennae.
+            moveTo(9.4f, 7.3f); lineTo(7.9f, 4.9f)
+            moveTo(14.6f, 7.3f); lineTo(16.1f, 4.9f)
+            // Legs.
+            moveTo(7.4f, 10.7f); horizontalLineTo(4.2f)
+            moveTo(7.4f, 14.6f); horizontalLineTo(4.2f)
+            moveTo(16.6f, 10.7f); horizontalLineTo(19.8f)
+            moveTo(16.6f, 14.6f); horizontalLineTo(19.8f)
+        }
+    }
+
+    /** Box with an arrow leaving it: this opens something outside the app. */
+    val ExternalLink: ImageVector by lazy {
+        strokeIcon("ExternalLink") {
+            moveTo(13.4f, 4.4f); horizontalLineTo(19.6f); verticalLineTo(10.6f)
+            moveTo(19.6f, 4.4f); lineTo(11.2f, 12.8f)
+            moveTo(16.8f, 13.9f)
+            verticalLineTo(18.1f)
+            curveTo(16.8f, 19.0f, 16.1f, 19.6f, 15.3f, 19.6f)
+            horizontalLineTo(5.9f)
+            curveTo(5.1f, 19.6f, 4.4f, 19.0f, 4.4f, 18.1f)
+            verticalLineTo(8.7f)
+            curveTo(4.4f, 7.9f, 5.1f, 7.2f, 5.9f, 7.2f)
+            horizontalLineTo(10.1f)
+        }
+    }
+
     val Camera: ImageVector by lazy {
         strokeIcon("Camera") {
             // Body, with the viewfinder hump rising off its top edge.

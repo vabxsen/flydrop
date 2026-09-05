@@ -3,6 +3,7 @@ package com.flydrop.app
 import android.Manifest
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsOff
@@ -101,6 +102,11 @@ class FlyDropNavigationTest {
         // only in that pane, so they stand in for it.
         composeRule.onNodeWithText("Build type").assertIsDisplayed()
         composeRule.onNodeWithText("Package").assertIsDisplayed()
+
+        // The two ways out to the project. They are not tapped: both hand off
+        // to a browser, which would leave the app and end the test.
+        composeRule.onNodeWithText("Source code").assertIsDisplayed().assertHasClickAction()
+        composeRule.onNodeWithText("Report a bug").assertIsDisplayed().assertHasClickAction()
 
         aboutTab("Credits").assertIsNotSelected().performClick()
         aboutTab("Credits").assertIsSelected()

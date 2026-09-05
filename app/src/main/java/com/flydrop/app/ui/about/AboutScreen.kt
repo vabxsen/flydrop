@@ -1,5 +1,7 @@
 package com.flydrop.app.ui.about
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -17,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
@@ -25,12 +28,15 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.selected
@@ -38,6 +44,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.core.net.toUri
+import java.net.URLEncoder
 import com.flydrop.app.ui.components.FlyDropIcons
 import com.flydrop.app.ui.components.FlyDropLogo
 import com.flydrop.app.ui.components.SoftCard
@@ -45,15 +53,54 @@ import com.flydrop.app.ui.theme.FlyDrop
 import com.flydrop.app.ui.theme.FlyDropTheme
 
 /**
- * What the Version tab reports. Passed in rather than read from `BuildConfig`
- * here, so the screen stays previewable and does not depend on the build.
+ * What About reports. Passed in rather than read from `BuildConfig` and
+ * `Build` here, so the screen stays previewable and does not depend on the
+ * build or the device it is running on.
+ *
+ * [androidRelease], [sdkInt] and [device] are not shown; they go into the
+ * prefilled bug report, so an issue arrives with the context a maintainer would
+ * otherwise have to ask for.
  */
 data class AboutInfo(
     val versionName: String,
     val versionCode: Int,
     val packageName: String,
     val debugBuild: Boolean,
-)
+    val sourceUrl: String,
+    val androidRelease: String,
+    val sdkInt: Int,
+    val device: String,
+) {
+    val issuesUrl: String get() = "$sourceUrl/issues"
+
+    /**
+     * A GitHub "new issue" URL carrying a template and the build it came from.
+     * GitHub fills the form from the `body` parameter, so the reporter lands on
+     * a part-written report rather than an empty box.
+     *
+     * Encoded with [URLEncoder] rather than `Uri.encode` so this stays plain
+     * Kotlin and can be covered by a unit test.
+     */
+    val newIssueUrl: String
+        get() {
+            val body = """
+                **What happened?**
+
+
+                **What did you expect?**
+
+
+                **Steps to reproduce**
+                1.
+                2.
+
+                ---
+                FlyDrop $versionName (build $versionCode) - ${if (debugBuild) "debug" else "release"}
+                Android $androidRelease (API $sdkInt) - $device
+            """.trimIndent()
+            return "$issuesUrl/new?body=" + URLEncoder.encode(body, "UTF-8")
+        }
+}
 
 enum class AboutTab(val label: String) {
     Version("Version"),
@@ -64,8 +111,9 @@ enum class AboutTab(val label: String) {
  * About, reached from Profile.
  *
  * Two tabs over one scrolling sheet: what this build is, and what it was built
- * out of. The selected tab survives configuration changes, so a rotation does
- * not quietly send the reader back to Version.
+ * out of. Version also carries the two ways out to the project - the source and
+ * a prefilled bug report. The selected tab survives configuration changes, so a
+ * rotation does not quietly send the reader back to Version.
  */
 @Composable
 fun AboutScreen(
@@ -75,6 +123,22 @@ fun AboutScreen(
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(AboutTab.Version) }
+    var linkError by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+
+    // A device with no browser cannot open GitHub. Rare, but the alternative is
+    // a tap that does nothing at all and looks like a broken button.
+    val openLink: (String) -> Unit = { url ->
+        linkError = try {
+            context.startActivity(
+                Intent(Intent.ACTION_VIEW, url.toUri())
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+            null
+        } catch (_: ActivityNotFoundException) {
+            "No app on this device can open links."
+        }
+    }
 
     Column(
         modifier = modifier
@@ -110,8 +174,17 @@ fun AboutScreen(
                 ),
         ) {
             when (selectedTab) {
-                AboutTab.Version -> VersionTab(info)
+                AboutTab.Version -> VersionTab(info, onOpenLink = openLink)
                 AboutTab.Credits -> CreditsTab()
+            }
+
+            if (linkError != null) {
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = linkError.orEmpty(),
+                    style = FlyDrop.type.metadata,
+                    color = ErrorRed,
+                )
             }
         }
     }
@@ -228,7 +301,11 @@ private fun RowScope.AboutTabItem(
 }
 
 @Composable
-private fun VersionTab(info: AboutInfo, modifier: Modifier = Modifier) {
+private fun VersionTab(
+    info: AboutInfo,
+    onOpenLink: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Column(modifier = modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.fillMaxWidth(),
@@ -252,6 +329,21 @@ private fun VersionTab(info: AboutInfo, modifier: Modifier = Modifier) {
         Spacer(Modifier.height(FlyDrop.dimens.cardGap))
         DetailCard("Build type", if (info.debugBuild) "Debug" else "Release")
 
+        Spacer(Modifier.height(FlyDrop.dimens.sectionGap))
+        LinkCard(
+            icon = FlyDropIcons.Code,
+            title = "Source code",
+            subtitle = "View FlyDrop on GitHub",
+            onClick = { onOpenLink(info.sourceUrl) },
+        )
+        Spacer(Modifier.height(FlyDrop.dimens.cardGap))
+        LinkCard(
+            icon = FlyDropIcons.Bug,
+            title = "Report a bug",
+            subtitle = "Open an issue, prefilled with this build",
+            onClick = { onOpenLink(info.newIssueUrl) },
+        )
+
         Spacer(Modifier.height(18.dp))
         Text(
             text = "Peer-to-peer transfer is not wired up yet; nearby devices " +
@@ -259,6 +351,73 @@ private fun VersionTab(info: AboutInfo, modifier: Modifier = Modifier) {
             style = FlyDrop.type.metadata,
             color = FlyDrop.colors.textTertiary,
         )
+    }
+}
+
+/**
+ * A row that leaves the app: icon, what it is, and what tapping it does.
+ *
+ * The trailing mark is the external-link glyph rather than the chevron the
+ * in-app rows use, because this one hands the user to a browser and that is
+ * worth signalling before the tap rather than after it.
+ */
+@Composable
+private fun LinkCard(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = FlyDrop.colors
+    SoftCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = FlyDrop.shapes.smallCard,
+        elevation = 3.dp,
+        onClick = onClick,
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 13.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clip(FlyDrop.shapes.tile)
+                    .background(colors.violetSoft, FlyDrop.shapes.tile),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = colors.violet,
+                    modifier = Modifier.size(19.dp),
+                )
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = FlyDrop.type.cardTitle,
+                    color = colors.textPrimary,
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    style = FlyDrop.type.metadata,
+                    color = colors.textSecondary,
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Icon(
+                imageVector = FlyDropIcons.ExternalLink,
+                contentDescription = null,
+                tint = colors.textTertiary,
+                modifier = Modifier.size(16.dp),
+            )
+        }
     }
 }
 
@@ -365,11 +524,18 @@ private fun CreditCard(title: String, body: String, modifier: Modifier = Modifie
     }
 }
 
+/** Matches the sign-in screen's error tone. */
+private val ErrorRed = Color(0xFFD1453B)
+
 private val PreviewInfo = AboutInfo(
     versionName = "1.0.1",
     versionCode = 2,
     packageName = "com.flydrop.app",
     debugBuild = false,
+    sourceUrl = "https://github.com/vabxsen/flydrop",
+    androidRelease = "16",
+    sdkInt = 36,
+    device = "Google Pixel 9",
 )
 
 @Preview(showBackground = true, widthDp = 380, heightDp = 820)

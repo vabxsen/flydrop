@@ -15,7 +15,7 @@ radar, the transfer arc, the switch, the cards and the icon set are all bespoke.
 | **Nearby** | Discovery radar drawn on the background — concentric rings, a breathing centre bloom, a slow scanning pulse and devices placed by polar coordinates — above a white Nearby Friends panel. |
 | **File Transfer** | Animated circular progress with both participants, a three-column stats strip, and per-file rows with their own progress rings. |
 | **Sign in / Profile** | Not in the reference; built from the same vocabulary. Google sign-in, the account with its editable FlyDrop ID and profile photo, and a way back out of it. |
-| **About** | Reached from Profile. Two tabs over one sheet — **Version** (version name, build number, package, build type) and **Credits** (licences and what the app is built from). |
+| **About** | Reached from Profile. Two tabs over one sheet — **Version** (version name, build number, package, build type, plus links to the source and a prefilled bug report) and **Credits** (licences and what the app is built from). |
 
 ## Design tokens
 
@@ -86,8 +86,8 @@ Run the local model tests and the Android UI flow on a connected emulator:
 The UI test covers guest entry, contacts permission, the initially empty favourites
 state, notifications, Send, Receive, scan, discovery, adding a nearby friend,
 bottom navigation, profile/account actions, the profile photo sheet and the About
-tabs. Unit tests cover favourite selection, transfer progress and FlyDrop ID
-validation.
+tabs. Unit tests cover favourite selection, transfer progress, FlyDrop ID
+validation and the bug-report URL.
 
 `local.properties` is not committed — point `sdk.dir` at your Android SDK, or set
 `ANDROID_HOME`.
@@ -149,6 +149,19 @@ Without Firebase configured the app still runs: Profile shows the derived id and
 simply does not offer to change it. Handle shape — length, allowed characters,
 reserved names — is `data/profile/FlyIdRules.kt`, checked in the client for fast
 feedback and again in the rules on create.
+
+## Source code and bug reports
+
+About > Version carries two rows that leave the app: **Source code**, which opens
+the repository, and **Report a bug**, which opens a GitHub issue already filled
+in with a short template and the build it came from — version, build number,
+debug/release, Android version and device — so a report arrives with the context
+a maintainer would otherwise have to ask for.
+
+The repository URL is a `buildConfigField` in `app/build.gradle.kts`, not a
+constant in a composable, so moving the repository is a one-line change. Both
+rows carry the external-link glyph rather than the chevron the in-app rows use,
+and a device with no browser gets a message instead of a tap that does nothing.
 
 ## Contacts
 

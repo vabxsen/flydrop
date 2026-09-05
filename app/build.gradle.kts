@@ -46,6 +46,10 @@ android {
         versionCode = 2
         versionName = "1.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // About > Source code and Report a bug open these. Kept here rather
+        // than in a composable so moving the repository is a one-line change.
+        buildConfigField("String", "SOURCE_URL", "\"https://github.com/vabxsen/flydrop\"")
     }
 
     signingConfigs {

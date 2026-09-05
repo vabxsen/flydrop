@@ -2,6 +2,7 @@ package com.flydrop.app.ui.navigation
 
 import android.Manifest
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -198,13 +199,17 @@ private fun FlyDropNavHost(
         )
     }
 
-    // Read once: what the build is cannot change while it is running.
+    // Read once: neither the build nor the device changes while it is running.
     val aboutInfo = remember {
         AboutInfo(
             versionName = BuildConfig.VERSION_NAME,
             versionCode = BuildConfig.VERSION_CODE,
             packageName = BuildConfig.APPLICATION_ID,
             debugBuild = BuildConfig.DEBUG,
+            sourceUrl = BuildConfig.SOURCE_URL,
+            androidRelease = Build.VERSION.RELEASE ?: "unknown",
+            sdkInt = Build.VERSION.SDK_INT,
+            device = "${Build.MANUFACTURER} ${Build.MODEL}",
         )
     }
 
