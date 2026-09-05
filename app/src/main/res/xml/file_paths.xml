@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The single directory UpdateRepository downloads an update APK into. The
+  system installer cannot read a file out of the app's private storage, so the
+  APK is handed over as a content:// URI granted from here rather than as a
+  path. Nothing else is shared.
+-->
+<paths>
+    <cache-path name="updates" path="updates/" />
+</paths>

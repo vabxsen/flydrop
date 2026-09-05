@@ -181,6 +181,20 @@ object FlyDropIcons {
         }
     }
 
+    /** Arrow into a tray: fetch a newer build. */
+    val Download: ImageVector by lazy {
+        strokeIcon("Download") {
+            moveTo(12.0f, 3.6f); verticalLineTo(14.8f)
+            moveTo(7.6f, 10.6f); lineTo(12.0f, 15.0f); lineTo(16.4f, 10.6f)
+            moveTo(4.2f, 16.4f)
+            verticalLineTo(18.6f)
+            curveTo(4.2f, 19.6f, 5.0f, 20.4f, 6.0f, 20.4f)
+            horizontalLineTo(18.0f)
+            curveTo(19.0f, 20.4f, 19.8f, 19.6f, 19.8f, 18.6f)
+            verticalLineTo(16.4f)
+        }
+    }
+
     /** Angle brackets, the usual shorthand for source. */
     val Code: ImageVector by lazy {
         strokeIcon("Code", strokeWidth = 1.9f) {

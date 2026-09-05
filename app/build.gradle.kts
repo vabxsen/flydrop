@@ -50,6 +50,11 @@ android {
         // About > Source code and Report a bug open these. Kept here rather
         // than in a composable so moving the repository is a one-line change.
         buildConfigField("String", "SOURCE_URL", "\"https://github.com/vabxsen/flydrop\"")
+        buildConfigField(
+            "String",
+            "RELEASES_API_URL",
+            "\"https://api.github.com/repos/vabxsen/flydrop/releases/latest\"",
+        )
     }
 
     signingConfigs {
@@ -121,6 +126,9 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
 
     testImplementation(libs.junit)
+    // Unit tests run against the JVM, where android.jar's org.json is a stub
+    // that throws. This is the real implementation, for tests only.
+    testImplementation(libs.json)
 
     androidTestImplementation(libs.androidx.test.ext.junit)
     androidTestImplementation(libs.androidx.test.runner)

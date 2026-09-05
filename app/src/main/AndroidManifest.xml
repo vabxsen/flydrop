@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <!-- Firebase Authentication needs network access. -->
+    <!-- Firebase Authentication and the GitHub update check need network access. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!--
+      About > Check for update installs a newer build of this app from the
+      project's GitHub releases. FlyDrop is distributed as an APK rather than
+      through Play, so updating it means installing one. The system installer
+      still asks every time, and the user must allow this app to install
+      unknown apps before it can be offered at all.
+    -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Used only to show the device's contact names on the Home screen. -->
     <uses-permission android:name="android.permission.READ_CONTACTS" />
 
@@ -26,6 +34,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Hands the downloaded update APK to the system installer. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
     </application>
 
 </manifest>

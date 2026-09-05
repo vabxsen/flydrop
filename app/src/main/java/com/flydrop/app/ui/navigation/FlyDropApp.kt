@@ -46,6 +46,7 @@ import com.flydrop.app.data.model.FlyUser
 import com.flydrop.app.data.model.TransferDirection
 import com.flydrop.app.ui.about.AboutInfo
 import com.flydrop.app.ui.about.AboutScreen
+import com.flydrop.app.ui.about.UpdateViewModel
 import com.flydrop.app.ui.auth.AuthStatus
 import com.flydrop.app.ui.auth.AuthViewModel
 import com.flydrop.app.ui.auth.SignInScreen
@@ -309,9 +310,21 @@ private fun FlyDropNavHost(
                 enterTransition = { slideInVertically(tween(300)) { it / 6 } + fadeIn(tween(300)) },
                 popExitTransition = { slideOutVertically(tween(260)) { it / 6 } + fadeOut(tween(260)) },
             ) {
+                val updateViewModel: UpdateViewModel = viewModel()
+                val updateState by updateViewModel.uiState.collectAsStateWithLifecycle()
                 AboutScreen(
                     info = aboutInfo,
                     onBack = { navController.popBackStack() },
+                    updateState = updateState,
+                    onCheckForUpdate = {
+                        updateViewModel.check(
+                            apiUrl = BuildConfig.RELEASES_API_URL,
+                            installedVersion = aboutInfo.versionName,
+                        )
+                    },
+                    onDownloadUpdate = updateViewModel::downloadAndInstall,
+                    onInstallUpdate = updateViewModel::install,
+                    onGrantInstallPermission = updateViewModel::openInstallPermissionSettings,
                     contentPadding = PaddingValues(
                         top = statusBarPadding,
                         bottom = navigationBarPadding,

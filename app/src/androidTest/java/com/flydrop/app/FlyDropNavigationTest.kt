@@ -108,6 +108,12 @@ class FlyDropNavigationTest {
         composeRule.onNodeWithText("Source code").assertIsDisplayed().assertHasClickAction()
         composeRule.onNodeWithText("Report a bug").assertIsDisplayed().assertHasClickAction()
 
+        // The update card starts idle and tappable. It is not tapped: doing so
+        // would reach GitHub, making the test depend on the network and on what
+        // happens to be released.
+        composeRule.onNodeWithText("Check for update").assertIsDisplayed()
+        composeRule.onNodeWithText("See if a newer build is on GitHub").assertIsDisplayed()
+
         aboutTab("Credits").assertIsNotSelected().performClick()
         aboutTab("Credits").assertIsSelected()
         composeRule.onNodeWithText("Poppins").assertIsDisplayed()

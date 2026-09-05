@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -45,12 +46,14 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
-import java.net.URLEncoder
+import com.flydrop.app.data.update.AppRelease
 import com.flydrop.app.ui.components.FlyDropIcons
 import com.flydrop.app.ui.components.FlyDropLogo
 import com.flydrop.app.ui.components.SoftCard
 import com.flydrop.app.ui.theme.FlyDrop
 import com.flydrop.app.ui.theme.FlyDropTheme
+import java.net.URLEncoder
+import kotlin.math.roundToInt
 
 /**
  * What About reports. Passed in rather than read from `BuildConfig` and
@@ -120,6 +123,11 @@ fun AboutScreen(
     info: AboutInfo,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
+    updateState: UpdateUiState = UpdateUiState(),
+    onCheckForUpdate: () -> Unit = {},
+    onDownloadUpdate: () -> Unit = {},
+    onInstallUpdate: () -> Unit = {},
+    onGrantInstallPermission: () -> Unit = {},
     contentPadding: PaddingValues = PaddingValues(0.dp),
 ) {
     var selectedTab by rememberSaveable { mutableStateOf(AboutTab.Version) }
@@ -174,7 +182,15 @@ fun AboutScreen(
                 ),
         ) {
             when (selectedTab) {
-                AboutTab.Version -> VersionTab(info, onOpenLink = openLink)
+                AboutTab.Version -> VersionTab(
+                    info = info,
+                    updateState = updateState,
+                    onOpenLink = openLink,
+                    onCheckForUpdate = onCheckForUpdate,
+                    onDownloadUpdate = onDownloadUpdate,
+                    onInstallUpdate = onInstallUpdate,
+                    onGrantInstallPermission = onGrantInstallPermission,
+                )
                 AboutTab.Credits -> CreditsTab()
             }
 
@@ -303,7 +319,12 @@ private fun RowScope.AboutTabItem(
 @Composable
 private fun VersionTab(
     info: AboutInfo,
+    updateState: UpdateUiState,
     onOpenLink: (String) -> Unit,
+    onCheckForUpdate: () -> Unit,
+    onDownloadUpdate: () -> Unit,
+    onInstallUpdate: () -> Unit,
+    onGrantInstallPermission: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
@@ -330,6 +351,16 @@ private fun VersionTab(
         DetailCard("Build type", if (info.debugBuild) "Debug" else "Release")
 
         Spacer(Modifier.height(FlyDrop.dimens.sectionGap))
+        UpdateCard(
+            state = updateState,
+            onCheck = onCheckForUpdate,
+            onDownload = onDownloadUpdate,
+            onInstall = onInstallUpdate,
+            onGrantPermission = onGrantInstallPermission,
+            onOpenNotes = { updateState.release?.pageUrl?.let(onOpenLink) },
+        )
+
+        Spacer(Modifier.height(FlyDrop.dimens.cardGap))
         LinkCard(
             icon = FlyDropIcons.Code,
             title = "Source code",
@@ -352,6 +383,208 @@ private fun VersionTab(
             color = FlyDrop.colors.textTertiary,
         )
     }
+}
+
+/**
+ * The update check, and everything that follows from it, in one card.
+ *
+ * It stays a single card through every step rather than swapping in new rows,
+ * so the thing the user tapped is the thing that answers them. The download is
+ * never started for them: an update is several megabytes and an install prompt,
+ * so it waits for a second, deliberate tap.
+ */
+@Composable
+private fun UpdateCard(
+    state: UpdateUiState,
+    onCheck: () -> Unit,
+    onDownload: () -> Unit,
+    onInstall: () -> Unit,
+    onGrantPermission: () -> Unit,
+    onOpenNotes: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = FlyDrop.colors
+    val idle = state.status == UpdateStatus.Idle
+
+    SoftCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = FlyDrop.shapes.smallCard,
+        elevation = 3.dp,
+        // Only a card that does nothing yet is itself the button; once it has
+        // something to say, the actions inside it take over.
+        onClick = if (idle) onCheck else null,
+    ) {
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 13.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(FlyDrop.shapes.tile)
+                        .background(colors.violetSoft, FlyDrop.shapes.tile),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (state.busy) {
+                        CircularProgressIndicator(
+                            color = colors.violet,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(17.dp),
+                        )
+                    } else {
+                        Icon(
+                            imageVector = FlyDropIcons.Download,
+                            contentDescription = null,
+                            tint = colors.violet,
+                            modifier = Modifier.size(19.dp),
+                        )
+                    }
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Check for update",
+                        style = FlyDrop.type.cardTitle,
+                        color = colors.textPrimary,
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = state.subtitle(),
+                        style = FlyDrop.type.metadata,
+                        color = if (state.status == UpdateStatus.Failed) {
+                            ErrorRed
+                        } else {
+                            colors.textSecondary
+                        },
+                    )
+                }
+                if (idle) {
+                    Spacer(Modifier.width(10.dp))
+                    Icon(
+                        imageVector = FlyDropIcons.ChevronRight,
+                        contentDescription = null,
+                        tint = colors.textTertiary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
+
+            if (state.status == UpdateStatus.Downloading) {
+                Spacer(Modifier.height(12.dp))
+                DownloadProgress(progress = state.progress)
+            }
+
+            val release = state.release
+            if (state.status == UpdateStatus.Available && release != null &&
+                release.notes.isNotBlank()
+            ) {
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    // Release notes are arbitrary markdown from GitHub, so they
+                    // are shown as plain text and trimmed rather than rendered.
+                    text = release.notes.lineSequence().take(NOTE_LINES).joinToString("\n"),
+                    style = FlyDrop.type.metadata,
+                    color = colors.textSecondary,
+                )
+            }
+
+            UpdateActions(
+                state = state,
+                onCheck = onCheck,
+                onDownload = onDownload,
+                onInstall = onInstall,
+                onGrantPermission = onGrantPermission,
+                onOpenNotes = onOpenNotes,
+            )
+        }
+    }
+}
+
+@Composable
+private fun UpdateActions(
+    state: UpdateUiState,
+    onCheck: () -> Unit,
+    onDownload: () -> Unit,
+    onInstall: () -> Unit,
+    onGrantPermission: () -> Unit,
+    onOpenNotes: () -> Unit,
+) {
+    val actions: List<Pair<String, () -> Unit>> = when (state.status) {
+        UpdateStatus.Available -> listOfNotNull(
+            "Download and install" to onDownload,
+            ("Release notes" to onOpenNotes).takeIf { state.release?.pageUrl?.isNotBlank() == true },
+        )
+
+        UpdateStatus.PermissionNeeded -> listOf("Allow installs" to onGrantPermission)
+        UpdateStatus.ReadyToInstall -> listOf("Install now" to onInstall)
+        UpdateStatus.Failed -> listOf("Try again" to onCheck)
+        UpdateStatus.UpToDate -> listOf("Check again" to onCheck)
+        UpdateStatus.Idle, UpdateStatus.Checking, UpdateStatus.Downloading -> emptyList()
+    }
+    if (actions.isEmpty()) return
+
+    Spacer(Modifier.height(12.dp))
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        actions.forEachIndexed { index, (label, action) ->
+            UpdateButton(label = label, filled = index == 0, onClick = action)
+        }
+    }
+}
+
+@Composable
+private fun UpdateButton(
+    label: String,
+    filled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = FlyDrop.colors
+    val shape = FlyDrop.shapes.chip
+    Text(
+        text = label,
+        style = FlyDrop.type.chipLabel,
+        color = if (filled) Color.White else colors.violet,
+        modifier = modifier
+            .clip(shape)
+            .background(if (filled) colors.violet else colors.violetSoft, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 8.dp),
+    )
+}
+
+/** A bar rather than a spinner: a multi-megabyte download deserves a fraction. */
+@Composable
+private fun DownloadProgress(progress: Float?, modifier: Modifier = Modifier) {
+    val colors = FlyDrop.colors
+    val shape = FlyDrop.shapes.chip
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(6.dp)
+            .clip(shape)
+            .background(colors.paleTile, shape),
+    ) {
+        if (progress != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(progress.coerceIn(0f, 1f))
+                    .background(colors.violet, shape),
+            )
+        }
+    }
+}
+
+/** What the card says under its title at each step. */
+private fun UpdateUiState.subtitle(): String = when (status) {
+    UpdateStatus.Idle -> "See if a newer build is on GitHub"
+    UpdateStatus.Checking -> "Checking GitHub…"
+    UpdateStatus.Downloading -> progress
+        ?.let { "Downloading… ${(it * 100).roundToInt()}%" }
+        ?: "Downloading…"
+
+    UpdateStatus.Available -> release?.let { "${it.name} is available" } ?: "An update is available"
+    UpdateStatus.ReadyToInstall -> message ?: "Downloaded. Follow the installer to finish."
+    UpdateStatus.UpToDate, UpdateStatus.PermissionNeeded, UpdateStatus.Failed ->
+        message ?: "Something went wrong."
 }
 
 /**
@@ -524,6 +757,9 @@ private fun CreditCard(title: String, body: String, modifier: Modifier = Modifie
     }
 }
 
+/** Enough of a changelog to decide by, without the card becoming the release page. */
+private const val NOTE_LINES = 6
+
 /** Matches the sign-in screen's error tone. */
 private val ErrorRed = Color(0xFFD1453B)
 
@@ -543,6 +779,55 @@ private val PreviewInfo = AboutInfo(
 private fun AboutScreenVersionPreview() {
     FlyDropTheme {
         AboutScreen(info = PreviewInfo, onBack = {})
+    }
+}
+
+@Preview(showBackground = true, widthDp = 380, heightDp = 820)
+@Composable
+private fun AboutScreenUpdateAvailablePreview() {
+    FlyDropTheme {
+        AboutScreen(
+            info = PreviewInfo,
+            onBack = {},
+            updateState = UpdateUiState(
+                status = UpdateStatus.Available,
+                release = AppRelease(
+                    tag = "v1.1.0",
+                    name = "FlyDrop v1.1.0",
+                    notes = "- Editable FlyDrop IDs\n- Custom profile photos",
+                    pageUrl = "https://example.com/releases/v1.1.0",
+                    apkUrl = "https://example.com/FlyDrop-v1.1.0.apk",
+                    apkBytes = 2_965_982,
+                ),
+            ),
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 380, heightDp = 820)
+@Composable
+private fun AboutScreenDownloadingPreview() {
+    FlyDropTheme {
+        AboutScreen(
+            info = PreviewInfo,
+            onBack = {},
+            updateState = UpdateUiState(status = UpdateStatus.Downloading, progress = 0.42f),
+        )
+    }
+}
+
+@Preview(showBackground = true, widthDp = 380, heightDp = 820)
+@Composable
+private fun AboutScreenUpToDatePreview() {
+    FlyDropTheme {
+        AboutScreen(
+            info = PreviewInfo,
+            onBack = {},
+            updateState = UpdateUiState(
+                status = UpdateStatus.UpToDate,
+                message = "You are on the latest version (1.0.1).",
+            ),
+        )
     }
 }
 

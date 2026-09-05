@@ -15,7 +15,7 @@ radar, the transfer arc, the switch, the cards and the icon set are all bespoke.
 | **Nearby** | Discovery radar drawn on the background — concentric rings, a breathing centre bloom, a slow scanning pulse and devices placed by polar coordinates — above a white Nearby Friends panel. |
 | **File Transfer** | Animated circular progress with both participants, a three-column stats strip, and per-file rows with their own progress rings. |
 | **Sign in / Profile** | Not in the reference; built from the same vocabulary. Google sign-in, the account with its editable FlyDrop ID and profile photo, and a way back out of it. |
-| **About** | Reached from Profile. Two tabs over one sheet — **Version** (version name, build number, package, build type, plus links to the source and a prefilled bug report) and **Credits** (licences and what the app is built from). |
+| **About** | Reached from Profile. Two tabs over one sheet — **Version** (version name, build number, package, build type, an update check against GitHub releases, and links to the source and a prefilled bug report) and **Credits** (licences and what the app is built from). |
 
 ## Design tokens
 
@@ -87,7 +87,7 @@ The UI test covers guest entry, contacts permission, the initially empty favouri
 state, notifications, Send, Receive, scan, discovery, adding a nearby friend,
 bottom navigation, profile/account actions, the profile photo sheet and the About
 tabs. Unit tests cover favourite selection, transfer progress, FlyDrop ID
-validation and the bug-report URL.
+validation, the bug-report URL, version comparison and release parsing.
 
 `local.properties` is not committed — point `sdk.dir` at your Android SDK, or set
 `ANDROID_HOME`.
@@ -162,6 +162,44 @@ The repository URL is a `buildConfigField` in `app/build.gradle.kts`, not a
 constant in a composable, so moving the repository is a one-line change. Both
 rows carry the external-link glyph rather than the chevron the in-app rows use,
 and a device with no browser gets a message instead of a tap that does nothing.
+
+## Updates
+
+About > Version has a **Check for update** card. It reads the latest GitHub
+release, compares its tag against this build, and if the release is newer it
+offers to download and install the APK. FlyDrop is distributed from GitHub
+rather than through Play, so updating it means installing an APK.
+
+What keeps that from being a hole:
+
+- The release is read over HTTPS from the project's own repository, and a
+  download URL that is not HTTPS is refused rather than followed.
+- The downloaded APK's signing certificate is compared against the running
+  app's **before the installer is ever offered it**. A file that is not a build
+  of this app by this developer is deleted, not installed.
+- Android refuses to replace an installed app with a differently signed one,
+  which is the guarantee underneath that check.
+- Nothing installs silently. The system installer always asks, and the user must
+  have allowed FlyDrop to install unknown apps before it can even be offered.
+
+The download is never started automatically: a check that finds something waits
+for a second, deliberate tap.
+
+Deciding whether a release is newer is `data/update/AppVersion.kt` — plain
+Kotlin, unit-tested, and deliberately conservative: a tag it cannot parse is
+never treated as newer, and the check says it could not compare rather than
+claiming you are up to date. Reading GitHub's JSON is `data/update/AppRelease.kt`,
+tested against a real payload so a renamed field cannot pass unnoticed.
+
+Two consequences worth knowing:
+
+- The manifest declares `REQUEST_INSTALL_PACKAGES`. Google Play requires a
+  declaration for that permission, so it matters if this app is ever published
+  there.
+- An update only installs over the existing app if both are signed with the same
+  release key. Release builds must use `keystore.properties`; an unsigned or
+  debug-signed APK on a release will download, fail the signature check and be
+  discarded.
 
 ## Contacts
 
