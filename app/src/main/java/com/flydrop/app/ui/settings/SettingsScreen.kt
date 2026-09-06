@@ -306,14 +306,7 @@ private fun PermissionCard(
         PermissionAccess.Granted -> "Allowed"
         PermissionAccess.Required -> "Permission needed"
         PermissionAccess.Blocked -> "Blocked - change it in Android settings"
-        PermissionAccess.BuiltIn -> if (
-            item.permission == AppPermission.NearbyWifi ||
-            item.permission == AppPermission.Bluetooth
-        ) {
-            "Managed by Android Quick Share"
-        } else {
-            "Available"
-        }
+        PermissionAccess.BuiltIn -> "Available"
     }
     val showAction = item.access != PermissionAccess.BuiltIn
     val actionLabel = when {
@@ -423,8 +416,8 @@ private fun PermissionNote(
         Spacer(Modifier.height(4.dp))
         Text(
             text = "FlyDrop asks for contacts only when you choose to show them. " +
-                "Nearby Wi-Fi and Bluetooth are managed by Android Quick Share, so FlyDrop " +
-                "does not request radio or location permissions.",
+                "Bluetooth and Nearby Wi-Fi are requested only when you start direct FlyDrop " +
+                "sharing. Quick Share keeps managing its own visibility.",
             style = FlyDrop.type.metadata,
             color = FlyDrop.colors.textSecondary,
         )
@@ -457,14 +450,18 @@ internal fun permissionItems(
     PermissionItem(
         permission = AppPermission.NearbyWifi,
         title = "Nearby Wi-Fi",
-        description = "Used by Android Quick Share for nearby transfers.",
-        access = PermissionAccess.BuiltIn,
+        description = "Used to transfer directly between nearby FlyDrop devices.",
+        access = if (sdkInt >= Build.VERSION_CODES.S_V2) {
+            runtimeAccess(context, AppPermission.NearbyWifi, sdkInt, blocked)
+        } else {
+            PermissionAccess.BuiltIn
+        },
     ),
     PermissionItem(
         permission = AppPermission.Bluetooth,
         title = "Bluetooth",
-        description = "Used by Android Quick Share to discover receivers.",
-        access = PermissionAccess.BuiltIn,
+        description = "Used to find and connect to nearby FlyDrop devices.",
+        access = runtimeAccess(context, AppPermission.Bluetooth, sdkInt, blocked),
     ),
     PermissionItem(
         permission = AppPermission.Internet,

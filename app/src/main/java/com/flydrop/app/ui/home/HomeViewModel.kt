@@ -5,6 +5,10 @@ import android.annotation.SuppressLint
 import android.app.Application
 import android.content.Context
 import android.content.pm.PackageManager
+import android.database.ContentObserver
+import android.os.Handler
+import android.os.Looper
+import android.provider.ContactsContract
 import androidx.compose.runtime.Immutable
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
@@ -79,6 +83,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         .getStringSet(FAVOURITE_CONTACT_IDS, emptySet())
         ?.toSet()
         .orEmpty()
+    private var contactsObserverRegistered = false
+    private val contactsObserver = object : ContentObserver(Handler(Looper.getMainLooper())) {
+        override fun onChange(selfChange: Boolean) {
+            // Contacts may change outside FlyDrop while the app is open. Reload
+            // the provider rather than leaving a stale phone book on screen.
+            loadContacts()
+        }
+    }
 
     private val _uiState = MutableStateFlow(
         HomeUiState(
@@ -92,7 +104,10 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     init {
-        if (hasContactsPermission()) loadContacts()
+        if (hasContactsPermission()) {
+            registerContactsObserver()
+            loadContacts()
+        }
     }
 
     fun clearNotifications() {
@@ -159,6 +174,7 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onContactsPermissionResult(granted: Boolean) {
         if (granted) {
+            registerContactsObserver()
             loadContacts()
         } else {
             _uiState.update { it.copy(contactsAccess = ContactsAccess.Denied) }
@@ -190,6 +206,16 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
         Manifest.permission.READ_CONTACTS,
     ) == PackageManager.PERMISSION_GRANTED
 
+    private fun registerContactsObserver() {
+        if (contactsObserverRegistered) return
+        getApplication<Application>().contentResolver.registerContentObserver(
+            ContactsContract.Contacts.CONTENT_URI,
+            true,
+            contactsObserver,
+        )
+        contactsObserverRegistered = true
+    }
+
     @SuppressLint("MissingPermission")
     private fun loadContacts() {
         if (!hasContactsPermission()) {
@@ -220,6 +246,14 @@ class HomeViewModel(application: Application) : AndroidViewModel(application) {
                     }
                 }
         }
+    }
+
+    override fun onCleared() {
+        if (contactsObserverRegistered) {
+            getApplication<Application>().contentResolver.unregisterContentObserver(contactsObserver)
+            contactsObserverRegistered = false
+        }
+        super.onCleared()
     }
 
     private companion object {

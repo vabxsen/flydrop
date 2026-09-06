@@ -21,12 +21,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -41,11 +38,13 @@ import com.flydrop.app.data.MockData
 import com.flydrop.app.data.PickedFile
 import com.flydrop.app.data.formatFileSize
 import com.flydrop.app.data.model.RadarDevice
+import com.flydrop.app.data.nearby.NearbyConnectionsState
+import com.flydrop.app.data.nearby.NearbyPeer
 import com.flydrop.app.ui.components.Chevron
-import com.flydrop.app.ui.components.DiscoverySwitch
 import com.flydrop.app.ui.components.FlyDropIcons
 import com.flydrop.app.ui.components.FlyDropLogo
 import com.flydrop.app.ui.components.PrimaryActionButton
+import com.flydrop.app.ui.components.QuickShareSettingsButton
 import com.flydrop.app.ui.components.RadarView
 import com.flydrop.app.ui.components.SectionHeader
 import com.flydrop.app.ui.components.SoftCard
@@ -59,21 +58,22 @@ import kotlinx.coroutines.delay
  * The radar occupies the upper area directly on the tinted background (it is
  * not inside a card), with the white sharing panel anchored below it.
  *
- * The transfer itself belongs to Android: FlyDrop runs no peer-discovery
- * transport of its own, so the panel hands files to the system Sharesheet and
- * sends the receiving side to Quick Share's own screen. The radar is the
- * screen's illustration rather than a live scan - the faces on it are the
- * sample people from [MockData], and tapping one brings it into the centre as
- * the chosen recipient. That choice is presentation only: no connection is
- * opened, and the Sharesheet still decides where the files actually go.
+ * FlyDrop's direct transport is exposed in the sharing panel. The radar remains
+ * a non-interactive illustration; its faces are never presented as real peers.
+ * Android Quick Share remains available as a separate system-share option.
  */
 @Composable
 fun NearbyScreen(
     onPickFiles: () -> Unit,
     modifier: Modifier = Modifier,
     devices: List<RadarDevice> = MockData.radarDevices,
-    discoverable: Boolean = false,
-    onDiscoverableChange: (Boolean) -> Unit = {},
+    onOpenQuickShareSettings: () -> Unit = {},
+    nearbyState: NearbyConnectionsState = NearbyConnectionsState(),
+    onStartNearby: () -> Unit = {},
+    onStopNearby: () -> Unit = {},
+    onSendToNearbyPeer: (NearbyPeer) -> Unit = {},
+    onAcceptNearbyConnection: () -> Unit = {},
+    onRejectNearbyConnection: () -> Unit = {},
     pickedFiles: List<PickedFile> = emptyList(),
     onClearPickedFiles: () -> Unit = {},
     onSendWithQuickShare: () -> Unit = {},
@@ -88,10 +88,6 @@ fun NearbyScreen(
             onDismissShareError()
         }
     }
-
-    // Which radar face carries the violet ring. Purely a highlight, so it lives
-    // here rather than in any state the rest of the app has to know about.
-    var selectedUserId by rememberSaveable { mutableStateOf<String?>(null) }
 
     val dimens = FlyDrop.dimens
     BoxWithConstraints(
@@ -118,10 +114,7 @@ fun NearbyScreen(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 FlyDropLogo(suffix = "nearby", modifier = Modifier.weight(1f))
-                DiscoverySwitch(
-                    checked = discoverable,
-                    onCheckedChange = onDiscoverableChange,
-                )
+                QuickShareSettingsButton(onClick = onOpenQuickShareSettings)
             }
 
             // The radar takes the space left between the header and the panel.
@@ -134,11 +127,7 @@ fun NearbyScreen(
                 ) {
                     RadarView(
                         devices = devices,
-                        scanning = discoverable,
-                        selectedUserId = selectedUserId,
-                        onDeviceClick = { device ->
-                            selectedUserId = device.user.id.takeIf { it != selectedUserId }
-                        },
+                        scanning = false,
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 24.dp),
@@ -154,10 +143,28 @@ fun NearbyScreen(
                 onClearPickedFiles = onClearPickedFiles,
                 onSendWithQuickShare = onSendWithQuickShare,
                 onReceiveWithQuickShare = onReceiveWithQuickShare,
+                nearbyState = nearbyState,
+                onStartNearby = onStartNearby,
+                onStopNearby = onStopNearby,
+                onSendToNearbyPeer = onSendToNearbyPeer,
                 shareError = shareError,
                 bottomPadding = contentPadding.calculateBottomPadding(),
             )
         }
+    }
+
+    nearbyState.incomingConnection?.let { incoming ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = onRejectNearbyConnection,
+            title = { Text("Nearby FlyDrop device") },
+            text = {
+                Text(
+                    "${incoming.name} wants to connect. Compare this code on both phones before accepting: ${incoming.authenticationToken}",
+                )
+            },
+            confirmButton = { TextButton(onClick = onAcceptNearbyConnection) { Text("Accept") } },
+            dismissButton = { TextButton(onClick = onRejectNearbyConnection) { Text("Decline") } },
+        )
     }
 }
 
@@ -172,6 +179,10 @@ private fun NearbySharingPanel(
     onClearPickedFiles: () -> Unit,
     onSendWithQuickShare: () -> Unit,
     onReceiveWithQuickShare: () -> Unit,
+    nearbyState: NearbyConnectionsState,
+    onStartNearby: () -> Unit,
+    onStopNearby: () -> Unit,
+    onSendToNearbyPeer: (NearbyPeer) -> Unit,
     shareError: String?,
     bottomPadding: androidx.compose.ui.unit.Dp,
     modifier: Modifier = Modifier,
@@ -225,7 +236,86 @@ private fun NearbySharingPanel(
             )
         }
 
+        DirectFlyDropCard(
+            state = nearbyState,
+            filesChosen = pickedFiles.isNotEmpty(),
+            onStart = onStartNearby,
+            onStop = onStopNearby,
+            onSend = onSendToNearbyPeer,
+        )
+
         QuickShareReceiveRow(onClick = onReceiveWithQuickShare)
+    }
+}
+
+/** Real FlyDrop endpoints discovered with Nearby Connections, never radar art. */
+@Composable
+private fun DirectFlyDropCard(
+    state: NearbyConnectionsState,
+    filesChosen: Boolean,
+    onStart: () -> Unit,
+    onStop: () -> Unit,
+    onSend: (NearbyPeer) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    SoftCard(
+        modifier = modifier.fillMaxWidth(),
+        shape = FlyDrop.shapes.smallCard,
+        elevation = 3.dp,
+    ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = FlyDropIcons.Radar,
+                    contentDescription = null,
+                    tint = FlyDrop.colors.tealPressed,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("FlyDrop nearby", style = FlyDrop.type.cardTitle, color = FlyDrop.colors.textPrimary)
+                    Text(
+                        if (state.active) "Visible to nearby FlyDrop devices" else "Find and receive from FlyDrop devices",
+                        style = FlyDrop.type.metadata,
+                        color = FlyDrop.colors.textSecondary,
+                    )
+                }
+                Text(
+                    text = if (state.active) "Stop" else "Start",
+                    style = FlyDrop.type.buttonLabel,
+                    color = FlyDrop.colors.violet,
+                    modifier = Modifier
+                        .clip(FlyDrop.shapes.chip)
+                        .clickable(onClick = if (state.active) onStop else onStart)
+                        .semantics { role = Role.Button }
+                        .padding(horizontal = 8.dp, vertical = 6.dp),
+                )
+            }
+            state.message?.let { message ->
+                Text(message, style = FlyDrop.type.metadata, color = FlyDrop.colors.textSecondary)
+            }
+            if (state.active && state.peers.isEmpty()) {
+                Text("No FlyDrop devices found yet.", style = FlyDrop.type.metadata, color = FlyDrop.colors.textTertiary)
+            }
+            state.peers.take(3).forEach { peer ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(FlyDrop.shapes.tile)
+                        .background(FlyDrop.colors.tealSoft)
+                        .clickable { onSend(peer) }
+                        .padding(horizontal = 10.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(peer.name, style = FlyDrop.type.metadata, color = FlyDrop.colors.textPrimary, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        if (filesChosen) "Send" else "Choose files",
+                        style = FlyDrop.type.buttonLabel,
+                        color = FlyDrop.colors.violet,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -357,7 +447,7 @@ private fun QuickShareReceiveRow(
 @Composable
 private fun NearbyScreenPreview() {
     FlyDropTheme {
-        NearbyScreen(onPickFiles = {}, discoverable = true)
+        NearbyScreen(onPickFiles = {})
     }
 }
 

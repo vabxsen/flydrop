@@ -2,6 +2,7 @@ package com.flydrop.app.ui.navigation
 
 import android.Manifest
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -26,11 +27,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.activity.compose.LocalActivity
@@ -47,6 +48,8 @@ import com.flydrop.app.data.MockData
 import com.flydrop.app.data.PickedFile
 import com.flydrop.app.data.describePickedFiles
 import com.flydrop.app.data.model.FlyUser
+import com.flydrop.app.data.nearby.nearbyRuntimePermissions
+import com.flydrop.app.data.profile.flyIdFromQr
 import com.flydrop.app.ui.about.AboutInfo
 import com.flydrop.app.ui.about.AboutScreen
 import com.flydrop.app.ui.about.UpdateViewModel
@@ -62,6 +65,7 @@ import com.flydrop.app.ui.home.HomeViewModel
 import com.flydrop.app.ui.home.InviteContactDialog
 import com.flydrop.app.ui.home.sendInvite
 import com.flydrop.app.ui.nearby.NearbyScreen
+import com.flydrop.app.ui.nearby.NearbyViewModel
 import com.flydrop.app.data.share.ShareOutcome
 import com.flydrop.app.data.share.openQuickShareReceive
 import com.flydrop.app.data.share.shareFiles
@@ -72,6 +76,9 @@ import com.flydrop.app.ui.theme.FlyDrop
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import com.google.mlkit.vision.codescanner.GmsBarcodeScannerOptions
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
+import com.google.mlkit.vision.barcode.common.Barcode
 
 private object Routes {
     const val HOME = "home"
@@ -183,6 +190,9 @@ private fun FlyDropNavHost(
     val identity = signedInUser?.let { user ->
         flyIdState.flyId?.let { user.copy(flyId = it) } ?: user
     }
+    val nearbyViewModel: NearbyViewModel = viewModel()
+    val nearbyState by nearbyViewModel.state.collectAsStateWithLifecycle()
+    LaunchedEffect(identity?.id, identity?.flyId) { nearbyViewModel.bind(identity) }
 
     val backStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = backStackEntry?.destination?.hierarchy
@@ -210,6 +220,53 @@ private fun FlyDropNavHost(
                 context.contentResolver.describePickedFiles(uris)
             }
             navigateToTab(Routes.NEARBY)
+        }
+    }
+
+    var scannedFlyId by remember { mutableStateOf<String?>(null) }
+    val qrScanner = remember(context) {
+        GmsBarcodeScanning.getClient(
+            context,
+            GmsBarcodeScannerOptions.Builder()
+                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                .enableAutoZoom()
+                .build(),
+        )
+    }
+    fun scanFlyDropCode() {
+        if (signedInUser == null) {
+            Toast.makeText(context, "Sign in to find a FlyDrop ID.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        qrScanner.startScan()
+            .addOnSuccessListener { barcode ->
+                val handle = flyIdFromQr(barcode.rawValue)
+                if (handle == null) {
+                    Toast.makeText(context, "That is not a FlyDrop QR code.", Toast.LENGTH_SHORT).show()
+                } else {
+                    scannedFlyId = handle
+                    navigateToTab(Routes.HOME)
+                }
+            }
+            .addOnFailureListener {
+                Toast.makeText(context, "The QR scanner could not start.", Toast.LENGTH_SHORT).show()
+            }
+    }
+
+    val nearbyPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { grants ->
+        if (grants.values.all { it }) nearbyViewModel.start() else nearbyViewModel.permissionsDenied()
+    }
+    fun startNearbySharing() {
+        val permissions = nearbyRuntimePermissions()
+        if (permissions.all { permission ->
+                ContextCompat.checkSelfPermission(context, permission) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            }
+        ) {
+            nearbyViewModel.start()
+        } else {
+            nearbyPermissionLauncher.launch(permissions.toTypedArray())
         }
     }
 
@@ -264,6 +321,14 @@ private fun FlyDropNavHost(
                 var invitee by remember { mutableStateOf<FlyUser?>(null) }
                 var inviteError by remember { mutableStateOf<String?>(null) }
 
+                LaunchedEffect(scannedFlyId) {
+                    scannedFlyId?.let { handle ->
+                        viewModel.onSearchQueryChange(handle)
+                        viewModel.searchFlyId()
+                        scannedFlyId = null
+                    }
+                }
+
                 val contactsPermissionLauncher = rememberLauncherForActivityResult(
                     ActivityResultContracts.RequestPermission(),
                     viewModel::onContactsPermissionResult,
@@ -273,7 +338,7 @@ private fun FlyDropNavHost(
                     onSendFile = { filePicker.launch(arrayOf("*/*")) },
                     onReceiveFile = { navigateToTab(Routes.NEARBY) },
                     onNotificationsClick = viewModel::clearNotifications,
-                    onScan = { navigateToTab(Routes.NEARBY) },
+                    onScan = ::scanFlyDropCode,
                     onToggleFavourite = viewModel::toggleFavourite,
                     onRequestContactsPermission = {
                         viewModel.markContactsPermissionRequestStarted()
@@ -315,22 +380,21 @@ private fun FlyDropNavHost(
 
             composable(Routes.NEARBY) {
                 var shareError by remember { mutableStateOf<String?>(null) }
-                // Android publishes no API that reads or sets Quick Share
-                // visibility, so the switch only records that the user asked
-                // for it and sends them to the screen that actually sets it.
-                var discoverable by rememberSaveable { mutableStateOf(false) }
-
                 NearbyScreen(
                     onPickFiles = { filePicker.launch(arrayOf("*/*")) },
-                    discoverable = discoverable,
-                    onDiscoverableChange = { wanted ->
-                        if (openQuickShareReceive(context)) {
-                            discoverable = wanted
-                            shareError = null
+                    onOpenQuickShareSettings = {
+                        shareError = if (openQuickShareReceive(context)) {
+                            null
                         } else {
-                            shareError = QUICK_SHARE_UNAVAILABLE
+                            QUICK_SHARE_UNAVAILABLE
                         }
                     },
+                    nearbyState = nearbyState,
+                    onStartNearby = ::startNearbySharing,
+                    onStopNearby = nearbyViewModel::stop,
+                    onSendToNearbyPeer = { peer -> nearbyViewModel.send(peer, pickedFiles) },
+                    onAcceptNearbyConnection = nearbyViewModel::acceptIncomingConnection,
+                    onRejectNearbyConnection = nearbyViewModel::rejectIncomingConnection,
                     pickedFiles = pickedFiles,
                     onClearPickedFiles = { pickedFiles = emptyList() },
                     onSendWithQuickShare = {

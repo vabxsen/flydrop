@@ -17,6 +17,9 @@ firebaseBom = "34.18.0"
 credentials = "1.6.0"
 exifinterface = "1.4.1"
 googleid = "1.2.0"
+nearby = "19.4.0"
+codeScanner = "16.1.0"
+desugarJdkLibs = "2.1.5"
 androidxTestExt = "1.3.0"
 androidxTestRunner = "1.7.0"
 junit = "4.13.2"
@@ -53,6 +56,9 @@ androidx-credentials = { group = "androidx.credentials", name = "credentials", v
 androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifinterface" }
 androidx-credentials-play-services = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
 googleid = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleid" }
+google-play-services-nearby = { group = "com.google.android.gms", name = "play-services-nearby", version.ref = "nearby" }
+google-play-services-code-scanner = { group = "com.google.android.gms", name = "play-services-code-scanner", version.ref = "codeScanner" }
+desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

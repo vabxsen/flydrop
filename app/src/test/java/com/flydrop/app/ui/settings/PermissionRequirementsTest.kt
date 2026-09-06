@@ -19,15 +19,35 @@ class PermissionRequirementsTest {
     }
 
     @Test
-    fun quickShareWifiDoesNotRequestAppRuntimePermission() {
+    fun nearbyWifiUsesTheAndroid12PermissionWhenAvailable() {
         assertEquals(emptyList<String>(), runtimePermissionsFor(AppPermission.NearbyWifi, 26))
-        assertEquals(emptyList<String>(), runtimePermissionsFor(AppPermission.NearbyWifi, 36))
+        assertEquals(
+            listOf(Manifest.permission.NEARBY_WIFI_DEVICES),
+            runtimePermissionsFor(AppPermission.NearbyWifi, 36),
+        )
     }
 
     @Test
-    fun quickShareBluetoothDoesNotRequestAppRuntimePermission() {
-        assertEquals(emptyList<String>(), runtimePermissionsFor(AppPermission.Bluetooth, 26))
-        assertEquals(emptyList<String>(), runtimePermissionsFor(AppPermission.Bluetooth, 36))
+    fun bluetoothUsesTheRequiredNearbyRuntimePermissionForEachPlatform() {
+        assertEquals(
+            listOf(Manifest.permission.ACCESS_COARSE_LOCATION),
+            runtimePermissionsFor(AppPermission.Bluetooth, 26),
+        )
+        assertEquals(
+            listOf(
+                Manifest.permission.ACCESS_COARSE_LOCATION,
+                Manifest.permission.ACCESS_FINE_LOCATION,
+            ),
+            runtimePermissionsFor(AppPermission.Bluetooth, 29),
+        )
+        assertEquals(
+            listOf(
+                Manifest.permission.BLUETOOTH_ADVERTISE,
+                Manifest.permission.BLUETOOTH_CONNECT,
+                Manifest.permission.BLUETOOTH_SCAN,
+            ),
+            runtimePermissionsFor(AppPermission.Bluetooth, 36),
+        )
     }
 
     @Test

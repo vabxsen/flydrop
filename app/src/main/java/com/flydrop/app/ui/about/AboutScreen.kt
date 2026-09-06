@@ -377,8 +377,8 @@ private fun VersionTab(
 
         Spacer(Modifier.height(18.dp))
         Text(
-            text = "Peer-to-peer transfer is not wired up yet; nearby devices " +
-                "and transfers in this build use sample data.",
+            text = "FlyDrop nearby sharing requires both phones to grant nearby permissions " +
+                "and accept the same connection code. Quick Share is managed by Android.",
             style = FlyDrop.type.metadata,
             color = FlyDrop.colors.textTertiary,
         )

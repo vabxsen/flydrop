@@ -1,11 +1,7 @@
 package com.flydrop.app.ui.components
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,31 +9,23 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.flydrop.app.data.MockData
 import com.flydrop.app.data.model.FlyUser
@@ -45,57 +33,31 @@ import com.flydrop.app.ui.theme.FlyDrop
 import com.flydrop.app.ui.theme.FlyDropTheme
 
 /**
- * The Quick Share visibility switch in the Nearby header. Material's
- * [androidx.compose.material3.Switch] has a visible outline, a smaller thumb
- * and a wider track than the reference, so this is drawn directly.
+ * Opens Android's own Quick Share settings from the Nearby header.
+ *
+ * Quick Share visibility is a system-owned setting. It must not be represented
+ * as a switch because FlyDrop cannot read or change its actual value.
  */
 @Composable
-fun DiscoverySwitch(
-    checked: Boolean,
-    onCheckedChange: (Boolean) -> Unit,
+fun QuickShareSettingsButton(
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val dimens = FlyDrop.dimens
-    val haptics = LocalHapticFeedback.current
-    val trackColor by animateColorAsState(
-        targetValue = if (checked) FlyDrop.colors.violet else Color(0xFFD5DCEC),
-        animationSpec = tween(durationMillis = 240),
-        label = "switchTrack",
-    )
-    val thumbPadding = 3.dp
-    val thumbSize = dimens.toggleHeight - thumbPadding * 2
-    // Kept as State (not unwrapped) so the offset can be read at draw time
-    // rather than recomposing the whole switch on every animation frame.
-    val thumbOffset = animateDpAsState(
-        targetValue = if (checked) dimens.toggleWidth - thumbSize - thumbPadding else thumbPadding,
-        animationSpec = tween(durationMillis = 240),
-        label = "switchThumb",
-    )
-
     Box(
         modifier = modifier
             .size(width = dimens.toggleWidth, height = dimens.toggleHeight)
             .clip(CircleShape)
-            .background(trackColor, CircleShape)
-            .semantics { contentDescription = "Quick Share visibility" }
-            .toggleable(
-                value = checked,
-                interactionSource = remember { MutableInteractionSource() },
-                indication = ripple(bounded = false, radius = dimens.toggleWidth / 2),
-                role = Role.Switch,
-                onValueChange = { newValue ->
-                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    onCheckedChange(newValue)
-                },
-            ),
-        contentAlignment = Alignment.CenterStart,
+            .background(FlyDrop.colors.violet, CircleShape)
+            .semantics { contentDescription = "Open Quick Share settings" }
+            .clickable(role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
     ) {
-        Box(
-            modifier = Modifier
-                .offset { IntOffset(thumbOffset.value.roundToPx(), 0) }
-                .size(thumbSize)
-                .clip(CircleShape)
-                .background(Color.White, CircleShape),
+        Icon(
+            imageVector = FlyDropIcons.Settings,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(16.dp),
         )
     }
 }
@@ -218,8 +180,7 @@ private fun NearbyComponentsPreview() {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                DiscoverySwitch(checked = true, onCheckedChange = {})
-                DiscoverySwitch(checked = false, onCheckedChange = {})
+                QuickShareSettingsButton(onClick = {})
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 NearbyFriendCard(

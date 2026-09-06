@@ -1,6 +1,8 @@
 package com.flydrop.app.ui.settings
 
 import android.Manifest
+import android.os.Build
+import com.flydrop.app.data.nearby.nearbyRuntimePermissions
 
 /** Permission groups shown to the user instead of Android's implementation details. */
 enum class AppPermission {
@@ -18,14 +20,19 @@ enum class AppPermission {
  * and testable. Internet and installing APKs are handled differently by
  * Android, so neither appears in the runtime-permission contract.
  */
-@Suppress("UNUSED_PARAMETER")
 internal fun runtimePermissionsFor(permission: AppPermission, sdkInt: Int): List<String> =
     when (permission) {
         AppPermission.Contacts -> listOf(Manifest.permission.READ_CONTACTS)
-        // Android Quick Share owns nearby discovery. FlyDrop hands it content
-        // through the Sharesheet and must not request radio/location access.
-        AppPermission.NearbyWifi,
-        AppPermission.Bluetooth,
+        AppPermission.NearbyWifi -> if (sdkInt >= Build.VERSION_CODES.S_V2) {
+            listOf(Manifest.permission.NEARBY_WIFI_DEVICES)
+        } else {
+            emptyList()
+        }
+
+        AppPermission.Bluetooth -> nearbyRuntimePermissions(sdkInt).filterNot {
+            it == Manifest.permission.NEARBY_WIFI_DEVICES
+        }
+
         AppPermission.Internet,
         AppPermission.InstallUpdates,
         -> emptyList()

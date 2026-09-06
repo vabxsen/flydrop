@@ -60,6 +60,14 @@ class FlyIdRulesTest {
         assertEquals("lucas", FlyIdRules.normalise(FlyIdRules.display("lucas")))
     }
 
+    @Test
+    fun qrPayloadAcceptsOnlyValidFlyDropIds() {
+        assertEquals("vaibhav.sen", flyIdFromQr("flydrop:fly#Vaibhav.Sen"))
+        assertEquals("vaibhav_sen", flyIdFromQr("FLY#Vaibhav_Sen"))
+        assertNull(flyIdFromQr("https://example.com"))
+        assertNull(flyIdFromQr("flydrop:admin"))
+    }
+
     /** The derived default is written straight to Firestore, so it must pass validation. */
     @Test
     fun derivedDefaultsAreAlwaysValid() {

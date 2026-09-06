@@ -3,14 +3,11 @@ package com.flydrop.app.ui.components
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
@@ -18,7 +15,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.State
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -28,8 +24,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -70,20 +64,13 @@ private const val DOT_ORBIT_PERIOD_MS = 90_000
 /** One turn of the sweeping beam. */
 private const val SWEEP_PERIOD_MS = 4_000
 
-/** How long a device takes to travel between its orbit and the centre. */
-private const val CONNECT_MS = 460
-
-/** The size a device grows to once it is centred as the chosen recipient. */
-private val ConnectedAvatarSize = 74.dp
-
 /**
  * The circular discovery visualisation: thin concentric rings, a soft glowing
  * centre, a radar beam sweeping around it, scattered signal dots, and the
  * devices drifting slowly along the rings.
  *
- * Selecting a device flies it into the centre, where it reads as the chosen
- * recipient; the violet "you" ring fades out behind it and the remaining
- * devices keep orbiting. Selecting it again sends it back to its ring.
+ * The faces are visual decoration only. They never represent connected people,
+ * cannot be selected, and do not affect the Android Sharesheet transfer flow.
  *
  * Positions are polar (angle + radius fraction) and resolved against the
  * measured size, so the whole composition scales with the screen instead of
@@ -96,8 +83,6 @@ fun RadarView(
     devices: List<RadarDevice>,
     scanning: Boolean,
     modifier: Modifier = Modifier,
-    selectedUserId: String? = null,
-    onDeviceClick: (RadarDevice) -> Unit = {},
 ) {
     val colors = FlyDrop.colors
     val transition = rememberInfiniteTransition(label = "radar")
@@ -150,13 +135,6 @@ fun RadarView(
         label = "radarDotOrbit",
     )
 
-    // "You" only holds the centre while nothing has been brought into it.
-    val youAlpha = animateFloatAsState(
-        targetValue = if (selectedUserId == null) 1f else 0f,
-        animationSpec = tween(durationMillis = CONNECT_MS, easing = FastOutSlowInEasing),
-        label = "radarYouAlpha",
-    )
-
     BoxWithConstraints(modifier = modifier, contentAlignment = Alignment.Center) {
         val outerRadius: Dp = min(maxWidth.value, maxHeight.value).dp / 2f
 
@@ -202,47 +180,23 @@ fun RadarView(
         Canvas(modifier = Modifier.size(30.dp)) {
             val stroke = 5.dp.toPx()
             drawCircle(
-                color = colors.violet.copy(alpha = youAlpha.value),
+                color = colors.violet,
                 radius = size.minDimension / 2f - stroke / 2f,
                 style = Stroke(width = stroke),
             )
         }
 
-        // The centred device is drawn last so it sits above the others.
-        devices.sortedBy { it.user.id == selectedUserId }.forEach { device ->
-            val connected = device.user.id == selectedUserId
-            val radiusFraction = animateFloatAsState(
-                targetValue = if (connected) 0f else device.radiusFraction,
-                animationSpec = tween(durationMillis = CONNECT_MS, easing = FastOutSlowInEasing),
-                label = "radarDeviceRadius",
-            )
-            val avatarSize = animateDpAsState(
-                targetValue = if (connected) ConnectedAvatarSize else device.avatarSize.dp,
-                animationSpec = tween(durationMillis = CONNECT_MS, easing = FastOutSlowInEasing),
-                label = "radarDeviceSize",
-            )
-
+        devices.forEach { device ->
             Avatar(
                 seed = device.user.avatarSeed,
-                size = avatarSize.value,
-                ringColor = if (connected) colors.violet else null,
+                size = device.avatarSize.dp,
                 modifier = Modifier
                     .polarOffset(
                         outerRadius = outerRadius,
-                        radiusFraction = { radiusFraction.value },
-                        // A device on its way to the centre keeps drifting, so it
-                        // curves in rather than snapping along a straight line.
+                        radiusFraction = { device.radiusFraction },
                         angleDegrees = { device.angleDegrees + orbit.value },
                     )
                     .clip(CircleShape)
-                    .semantics {
-                        contentDescription = if (connected) {
-                            "${device.user.name}, selected"
-                        } else {
-                            device.user.name
-                        }
-                    }
-                    .clickable { onDeviceClick(device) },
             )
         }
     }
@@ -339,7 +293,6 @@ private fun RadarViewPreview() {
         RadarView(
             devices = MockData.radarDevices,
             scanning = true,
-            selectedUserId = MockData.ashley.id,
             modifier = Modifier.fillMaxSize(),
         )
     }

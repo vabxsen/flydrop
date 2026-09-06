@@ -1,7 +1,7 @@
 # FlyDrop
 
 A native Android file-sharing UI built with Kotlin, Jetpack Compose and Material 3,
-reproducing the FlyDrop design reference: **Home**, **Nearby** and **File Transfer**.
+reproducing the FlyDrop design reference: **Home**, **Nearby** and **Profile**.
 
 The design is the specification. Where a stock Material component would drift from
 it, the component is custom-drawn instead — the floating navigation, the discovery
@@ -12,8 +12,7 @@ radar, the transfer arc, the switch, the cards and the icon set are all bespoke.
 | Screen | What it contains |
 | --- | --- |
 | **Home** | Two-tone layout: a pale aqua hero (profile card, split Send/Receive actions, Flydrop Web strip) with a full-bleed white sheet rising over it carrying user-selected Favourite Friends and the phone's Contacts. |
-| **Nearby** | Discovery radar drawn on the background — concentric rings, a breathing centre bloom, a slow scanning pulse and devices placed by polar coordinates — above a white Nearby Friends panel. |
-| **File Transfer** | Animated circular progress with both participants, a three-column stats strip, and per-file rows with their own progress rings. |
+| **Nearby** | A decorative radar above a real Nearby Connections panel that discovers FlyDrop devices, requires both phones to accept an authentication code, and transfers selected files directly. Android Quick Share remains available through the system Sharesheet. |
 | **Sign in / Profile** | Not in the reference; built from the same vocabulary. Google sign-in, the account with its editable FlyDrop ID and profile photo, and a way back out of it. |
 | **About** | Reached from Profile. Two tabs over one sheet — **Version** (version name, build number, package, build type, an update check against GitHub releases, and links to the source and a prefilled bug report) and **Credits** (licences and what the app is built from). |
 
@@ -213,8 +212,11 @@ app preferences and the section is empty until the user chooses someone.
 
 ## Status
 
-The three reference screens, sign-in, profile and about are implemented; nearby devices
-and transfers still use mock data (`data/MockData.kt`), while Home contacts come
-from Android's contacts provider. Actual peer-to-peer transfer — Nearby Connections or
-Wi-Fi Direct — is not wired up; the models and ViewModels are shaped so it can be
-added without reworking the UI.
+Home contacts come from Android's contacts provider and refresh while the app is open.
+The radar faces are deliberately decorative, but the Nearby panel uses Google Nearby
+Connections for real local FlyDrop discovery and direct file transfer. Both phones must
+grant nearby permissions and compare the displayed authentication code before accepting
+a connection. Received files are saved under `Downloads/FlyDrop` on Android 10 and later.
+
+Quick Share is a separate Android system feature. FlyDrop opens the Sharesheet for it;
+Android alone controls Quick Share visibility, receivers, and acceptance.

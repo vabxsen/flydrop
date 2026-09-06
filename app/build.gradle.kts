@@ -92,6 +92,7 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
     }
 
     kotlin {
@@ -122,6 +123,9 @@ dependencies {
     implementation(libs.androidx.credentials)
     implementation(libs.androidx.credentials.play.services)
     implementation(libs.googleid)
+    implementation(libs.google.play.services.nearby)
+    implementation(libs.google.play.services.code.scanner)
+    coreLibraryDesugaring(libs.desugar.jdk.libs)
 
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
